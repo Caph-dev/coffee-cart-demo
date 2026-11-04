@@ -391,8 +391,13 @@ button {
   text-decoration: line-through;
 }
 
-.step--error {
+.step--error,
+.step--unmet {
   color: var(--lacquer);
+}
+
+.step--unmet .step__mark::before {
+  background: currentColor;
 }
 
 .step__meta {
@@ -483,6 +488,17 @@ button {
   margin: 0;
   color: var(--ink-soft);
   font-size: 0.92rem;
+}
+
+.receipt__placeholder.is-unmet {
+  margin: 0.35rem 0 0.2rem;
+  padding: 0.35rem 0 0.35rem 0.7rem;
+  border-left: 3px solid var(--lacquer);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 1.2rem;
+  line-height: 1.45;
 }
 
 .receipt__total {
