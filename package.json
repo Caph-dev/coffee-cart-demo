@@ -8,7 +8,8 @@
     "start": "node src/server.mjs",
     "serve": "node src/server.mjs",
     "order": "node src/order.mjs",
-    "dry-run": "node src/order.mjs --dry-run \"来两杯拿铁再加一个麦芬\""
+    "dry-run": "node src/order.mjs --dry-run \"来两杯拿铁再加一个麦芬\"",
+    "test": "node --test src/*.test.mjs"
   },
   "engines": {
     "node": ">=20"

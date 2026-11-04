@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 公司内部点咖啡 demo：单 Choice 循环 + cart + last_added check。
+ * 公司内部点咖啡 demo：缩小候选找商品，再由数量 Choice（one/two/three/invalid）决定份数。
  *
  * 用法：
  *   node src/order.mjs "来两杯拿铁再加一个麦芬"
@@ -13,6 +13,7 @@ import {
   readConfig,
   buildPayload,
   buildChoiceQuestion,
+  buildQuantityQuestion,
   buildCheckQuestion,
 } from './jev.mjs';
 import { runCart, NOUL_THRESHOLD } from './cart.mjs';
@@ -37,6 +38,9 @@ function printHelp() {
   node src/order.mjs                交互输入一行
   node src/order.mjs --dry-run      不调 API，打印将发送的 payload
   node src/server.mjs               启动前端与 API（默认 :8787）
+
+数量 / quantity：Jev 在 one、two、three、invalid 里选。程序不解析数字。
+非法份数（0.7、-1、2^32 等）走 invalid，不写入购物车。
 
 环境变量：
   JEV_BASE_URL   默认 https://ai.caph.me/v1
@@ -63,18 +67,29 @@ async function readRequestFromStdin() {
 }
 
 function printDryRun(config, request) {
-  const choiceState = { request, cart: [], last_added: null };
-  console.log('[dry-run] 不调用 API。首轮 choice payload：');
+  const latte = MENU.find((item) => item.id === 'latte');
+  const choiceState = { request, cart: [], found: [], last_added: null };
+  console.log('[dry-run] 不调用 API。首轮 choice payload（剩下的菜单 + done）：');
   console.log(
     JSON.stringify(
-      buildPayload(config, choiceState, { next_item: buildChoiceQuestion(MENU) }),
+      buildPayload(config, choiceState, { next_item: buildChoiceQuestion(MENU, []) }),
       null,
       2,
     ),
   );
 
-  const sampleState = { request, cart: ['拿铁'], last_added: '拿铁' };
-  console.log('\n[dry-run] 加入一件后的 check payload 示例（last_added 示例值：拿铁）：');
+  const quantityState = { request, cart: [], item: latte.name, found: [latte.name] };
+  console.log('\n[dry-run] 找到一件后的 quantity payload 示例（拿铁 → one/two/three/invalid）：');
+  console.log(
+    JSON.stringify(
+      buildPayload(config, quantityState, { quantity: buildQuantityQuestion(latte) }),
+      null,
+      2,
+    ),
+  );
+
+  const sampleState = { request, cart: ['拿铁', '拿铁'], last_added: '拿铁' };
+  console.log('\n[dry-run] 合法数量写入后的 check payload 示例（last_added：拿铁）：');
   console.log(
     JSON.stringify(
       buildPayload(config, sampleState, { check_last_added: buildCheckQuestion() }),
@@ -132,9 +147,21 @@ async function main() {
           console.log('用户选择 done，结束点单。');
         }
         break;
-      case 'added':
-        console.log(`加入：${event.item}，cart=${JSON.stringify(event.cart)}`);
+      case 'quantity': {
+        const qtyConf =
+          typeof event.confidence === 'number' ? `（confidence=${event.confidence.toFixed(2)}）` : '';
+        console.log(`数量：${event.item} → ${event.quantity || event.raw || '(空)'}${qtyConf}`);
         break;
+      }
+      case 'invalid':
+        console.log(`结果：${event.message || '数量非法，无法满足'}，不加入「${event.item}」。`);
+        console.log(`cart：${JSON.stringify(event.cart)}`);
+        break;
+      case 'added': {
+        const qty = Number.isInteger(event.count) ? ` × ${event.count}` : '';
+        console.log(`加入：${event.item}${qty}，cart=${JSON.stringify(event.cart)}`);
+        break;
+      }
       case 'check':
         if (event.value === null) {
           console.log(`check：未返回 noul/score，保留 ${event.item}（未确认）。`);
@@ -159,7 +186,7 @@ async function main() {
         break;
       case 'final': {
         if (event.stoppedByLimit) {
-          console.log(`\n注意：达到最大轮数，已停止询问。`);
+          console.log(`\n注意：达到请求上限，已停止询问。`);
         }
         console.log('\n=== 最终订单 ===');
         if (event.total === 0) {
