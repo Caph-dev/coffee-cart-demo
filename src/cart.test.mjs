@@ -162,7 +162,19 @@ test('a quantity token outside the closed set is not expanded', async () => {
 
 test('两杯燕麦拿铁再来个麦芬 keeps both lines and shrinks the menu', async () => {
   const { callJev } = script([
-    () => choice('oat_latte'),
+    (payload) => {
+      const instructions = payload.questions.next_item.instructions;
+      const miss = instructions.match(/只是相近的名字（([^）]+)）/);
+      assert.ok(miss);
+      assert.equal(miss[1].includes('燕麦拿铁'), false);
+      assert.match(miss[1], /抹茶拿铁不是拿铁/);
+      assert.match(miss[1], /香草拿铁不是拿铁/);
+      assert.match(instructions, /如果用户点的是燕麦拿铁这一件，就选燕麦拿铁/);
+      const onMenuNot = payload.questions.on_menu.criteria.false.not;
+      assert.equal(onMenuNot.split('。')[0].includes('燕麦拿铁'), false);
+      assert.match(onMenuNot, /这条不适用于燕麦拿铁/);
+      return choice('oat_latte');
+    },
     () => quantity('two'),
     () => check(0.9),
     (payload) => {
@@ -302,6 +314,87 @@ test('near-miss names do not match a shorter menu item', () => {
   assert.equal(findMenuChoice('oat_latte（燕麦拿铁）').id, 'oat_latte');
   assert.equal(findMenuChoice('抹茶拿铁（latte）'), null);
   assert.equal(findMenuChoice('done').id, 'done');
+});
+
+/** Names the prompt says 「不是拿铁」. Covers both 「甲不是拿铁」 and 「甲、乙都不是拿铁」. */
+function namesCalledNotLatte(text) {
+  const names = new Set();
+  const source = String(text);
+  for (const match of source.matchAll(/([^，、。；（(]+)不是拿铁/g)) {
+    const cleaned = match[1].replace(/都$/, '').trim();
+    if (cleaned) names.add(cleaned);
+  }
+  for (const match of source.matchAll(/([^。]*)都不是拿铁/g)) {
+    for (const name of match[1].split(/[：（(]/).pop().split(/[、，]/)) {
+      const cleaned = name.trim();
+      if (cleaned) names.add(cleaned);
+    }
+  }
+  return [...names].sort();
+}
+
+test('燕麦拿铁 stays a menu hit and is not a global near-miss of 拿铁', () => {
+  const choice = buildChoiceQuestion(MENU, []);
+  const offMenu = ['抹茶拿铁', '绿色抹茶拿铁', '香草拿铁'].sort();
+  const missNames = namesCalledNotLatte(choice.instructions);
+  assert.deepEqual(missNames, offMenu);
+  assert.equal(missNames.includes('燕麦拿铁'), false);
+  assert.equal(JSON.stringify(choice).includes('燕麦拿铁不是拿铁'), false);
+  assert.match(choice.instructions, /如果用户点的是燕麦拿铁这一件，就选燕麦拿铁/);
+  assert.match(choice.instructions, /不要把它收成拿铁/);
+  assert.match(choice.instructions, /当成菜单外的相近名称/);
+  assert.match(choice.criteria.done.do_not, /用户点了燕麦拿铁时不要选 done，选燕麦拿铁/);
+  assert.equal(namesCalledNotLatte(choice.criteria.done.do_not).includes('燕麦拿铁'), false);
+  assert.deepEqual(namesCalledNotLatte(choice.criteria.done.do_not), offMenu);
+
+  const latteBanned = choice.criteria.latte.not.match(/不要选：([^。]+)/)[1].split('、');
+  assert.ok(latteBanned.includes('燕麦拿铁'));
+  assert.ok(latteBanned.includes('抹茶拿铁'));
+  assert.ok(latteBanned.includes('香草拿铁'));
+  assert.equal(latteBanned.includes('拿铁'), false);
+
+  const oatBanned = choice.criteria.oat_latte.not.match(/不要选：([^。]+)/)[1].split('、');
+  assert.deepEqual(oatBanned, ['拿铁', '抹茶拿铁', '香草拿铁']);
+
+  const onMenu = buildOnMenuQuestion(MENU);
+  const falseNot = onMenu.criteria.false.not;
+  assert.deepEqual(namesCalledNotLatte(falseNot), offMenu);
+  assert.match(falseNot, /不要因为里面有「拿铁」两个字就答 yes/);
+  assert.match(falseNot, /这条不适用于燕麦拿铁：它是菜单本名，点到了要答 yes/);
+  assert.match(onMenu.instructions.rule, /燕麦拿铁是完整的菜单本名，算点到了/);
+  assert.equal(JSON.stringify(onMenu).includes('燕麦拿铁不是拿铁'), false);
+  assert.ok(onMenu.criteria.true.examples.includes('两杯燕麦拿铁，再来个麦芬'));
+
+  const oatExact = buildExactQuestion(MENU.find((item) => item.id === 'oat_latte'));
+  assert.deepEqual(oatExact.criteria.false.match(/这些都不是：([^。]+)/)[1].split('、'), [
+    '拿铁',
+    '抹茶拿铁',
+    '香草拿铁',
+  ]);
+  const latteExact = buildExactQuestion(MENU.find((item) => item.id === 'latte'));
+  const latteExactNot = latteExact.criteria.false.match(/这些都不是：([^。]+)/)[1].split('、');
+  assert.ok(latteExactNot.includes('燕麦拿铁'));
+  assert.ok(latteExactNot.includes('抹茶拿铁'));
+  assert.ok(latteExactNot.includes('香草拿铁'));
+  assert.equal(latteExactNot.includes('拿铁'), false);
+
+  const check = buildCheckQuestion();
+  assert.match(check.criteria.true.means, /燕麦拿铁对上燕麦拿铁是这一件/);
+  assert.equal(namesCalledNotLatte(JSON.stringify(check)).includes('燕麦拿铁'), false);
+  assert.match(check.criteria.false.not, /共享「拿铁」两个字不算点了拿铁/);
+  assert.match(check.criteria.false.not, /抹茶拿铁、绿色抹茶拿铁、香草拿铁/);
+
+  const afterOat = buildChoiceQuestion(
+    MENU.filter((item) => item.id !== 'oat_latte'),
+    ['燕麦拿铁'],
+  );
+  assert.equal(afterOat.criteria.oat_latte, undefined);
+  assert.doesNotMatch(afterOat.instructions, /就选燕麦拿铁/);
+  assert.doesNotMatch(afterOat.criteria.done.do_not, /选燕麦拿铁/);
+  assert.deepEqual(namesCalledNotLatte(afterOat.instructions), offMenu);
+  const onMenuAfter = buildOnMenuQuestion(MENU.filter((item) => item.id !== 'oat_latte'));
+  assert.doesNotMatch(onMenuAfter.criteria.false.not, /燕麦拿铁/);
+  assert.match(onMenuAfter.criteria.false.not, /不要因为里面有「拿铁」两个字就答 yes/);
 });
 
 test('choice, exact, and check criteria refuse to substitute 拿铁 for 抹茶拿铁', () => {
