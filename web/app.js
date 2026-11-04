@@ -255,14 +255,21 @@ async function runOrder(request, gen, signal) {
           kind: 'choice',
         });
         break;
-      case 'temperature':
+      case 'temperature': {
+        const said = TEMPERATURE_LABEL[event.temperature] || '未说明';
+        const appliedMark = TEMPERATURE_LABEL[event.applied];
+        const meta =
+          event.applied && event.applied !== event.temperature && appliedMark
+            ? `${said}，默认${appliedMark}`
+            : said;
         addStep({
           mark: '温度',
           text: event.item || '这一杯',
-          meta: TEMPERATURE_LABEL[event.temperature] || '未说明',
+          meta,
           kind: 'choice',
         });
         break;
+      }
       case 'unmet':
         addStep({
           mark: '菜单',

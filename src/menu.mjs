@@ -1,8 +1,12 @@
 /**
  * 固定菜单。抹茶故意不在菜单里。
  * 相近名称（抹茶拿铁、香草拿铁）不是菜单项，也不能收成拿铁。
- * 冷热只加在标明 temperature 的咖啡上。热巧克力只卖热的，不再单问冷热。
+ * 冷热只加在标明 temperature 的咖啡上。客人没说时，店规默认冰，由购物车在归类之后落单。
+ * 热巧克力只卖热的，不再单问冷热，也不套用默认冰。
+ * Choice 仍可答 unspecified；这里的默认不写进归类提示，避免模型替客人改成 iced。
  */
+export const DEFAULT_TEMPERATURE = 'iced';
+
 export const MENU = [
   {
     id: 'americano',

@@ -11,7 +11,13 @@ import {
   buildOneOfEachQuestion,
   buildOrderTemperatureQuestion,
 } from './jev.mjs';
-import { classifyQuantity, classifyTemperature, runCart, OFF_MENU_MESSAGE, INVALID_QTY_MESSAGE } from './cart.mjs';
+import {
+  classifyQuantity,
+  classifyTemperature,
+  runCart,
+  OFF_MENU_MESSAGE,
+  INVALID_QTY_MESSAGE,
+} from './cart.mjs';
 
 function choice(id, confidence = 0.99, noul = 0.96) {
   return { answers: { next_item: { choice: id, confidence }, on_menu: { noul } } };
@@ -108,8 +114,8 @@ test('两杯拿铁 writes two lattes and then stops on done', async () => {
   const events = [];
   const summary = await runCart({ model: 'test' }, '来两杯拿铁', (event) => events.push(event), { callJev });
 
-  assert.deepEqual(summary.cart, ['拿铁', '拿铁']);
-  assert.deepEqual(summary.items, [{ name: '拿铁', count: 2 }]);
+  assert.deepEqual(summary.cart, ['拿铁 · 冰', '拿铁 · 冰']);
+  assert.deepEqual(summary.items, [{ name: '拿铁 · 冰', count: 2 }]);
   assert.equal(summary.total, 2);
   assert.equal(summary.stoppedByLimit, false);
   assert.equal(calls.length, 4);
@@ -194,7 +200,7 @@ test('两杯燕麦拿铁再来个麦芬 keeps both lines and shrinks the menu', 
   ]);
   const summary = await runCart({}, '来两杯燕麦拿铁，再来个麦芬', () => {}, { callJev });
   assert.deepEqual(summary.items, [
-    { name: '燕麦拿铁', count: 2 },
+    { name: '燕麦拿铁 · 冰', count: 2 },
     { name: '麦芬', count: 1 },
   ]);
   assert.equal(summary.total, 3);
@@ -261,7 +267,7 @@ test('an item already found cannot be added again', async () => {
   ]);
   const events = [];
   const summary = await runCart({}, '来一杯拿铁', (event) => events.push(event), { callJev });
-  assert.deepEqual(summary.cart, ['拿铁']);
+  assert.deepEqual(summary.cart, ['拿铁 · 冰']);
   assert.equal(events.filter((event) => event.type === 'ignored').length, 1);
   assert.equal(summary.stoppedByLimit, false);
 });
@@ -277,7 +283,7 @@ test('the request cap stops the loop before an unbounded cart', async () => {
     callJev,
     maxRequests: 3,
   });
-  assert.deepEqual(summary.cart, ['拿铁', '拿铁', '拿铁']);
+  assert.deepEqual(summary.cart, ['拿铁 · 冰', '拿铁 · 冰', '拿铁 · 冰']);
   assert.equal(summary.stoppedByLimit, true);
   assert.equal(calls.length, 3);
   assert.ok(summary.cart.length <= 3);
@@ -525,9 +531,12 @@ test('冰美式 is iced on the receipt and 热拿铁 is hot', async () => {
     () => check(0.95),
     () => choice('done'),
   ]);
-  const icedSummary = await runCart({}, '一杯冰美式', () => {}, { callJev: iced.callJev });
+  const icedEvents = [];
+  const icedSummary = await runCart({}, '一杯冰美式', (event) => icedEvents.push(event), { callJev: iced.callJev });
   assert.deepEqual(icedSummary.cart, ['美式 · 冰']);
   assert.deepEqual(icedSummary.items, [{ name: '美式 · 冰', count: 1 }]);
+  assert.equal(icedEvents.find((event) => event.type === 'temperature').temperature, 'iced');
+  assert.equal(icedEvents.find((event) => event.type === 'temperature').applied, 'iced');
 
   const hot = script([
     () => choice('latte'),
@@ -539,10 +548,31 @@ test('冰美式 is iced on the receipt and 热拿铁 is hot', async () => {
   const hotSummary = await runCart({}, '两杯热拿铁', (event) => hotEvents.push(event), { callJev: hot.callJev });
   assert.deepEqual(hotSummary.cart, ['拿铁 · 热', '拿铁 · 热']);
   assert.equal(hotEvents.find((event) => event.type === 'temperature').temperature, 'hot');
+  assert.equal(hotEvents.find((event) => event.type === 'temperature').applied, 'hot');
   assert.equal(hotEvents.find((event) => event.type === 'added').item, '拿铁 · 热');
 });
 
-test('unmentioned or illegal temperature stays unspecified and is not invented', async () => {
+test('一杯燕麦拿铁 with no stated temperature lands as iced', async () => {
+  const { callJev } = script([
+    () => choice('oat_latte'),
+    (payload) => {
+      assert.ok(payload.questions.temperature);
+      return quantity('one', 1, { temperature: 'unspecified' });
+    },
+    () => check(0.95),
+    () => choice('done'),
+  ]);
+  const events = [];
+  const summary = await runCart({}, '一杯燕麦拿铁', (event) => events.push(event), { callJev });
+  assert.deepEqual(summary.cart, ['燕麦拿铁 · 冰']);
+  const temperature = events.find((event) => event.type === 'temperature');
+  assert.equal(temperature.temperature, 'unspecified');
+  assert.equal(temperature.applied, 'iced');
+  assert.equal(events.find((event) => event.type === 'added').item, '燕麦拿铁 · 冰');
+  assert.equal(events.find((event) => event.type === 'added').applied, 'iced');
+});
+
+test('unmentioned or illegal temperature stays unspecified and the line defaults to iced', async () => {
   for (const token of [undefined, 'unspecified', 'both', '常温']) {
     const { callJev } = script([
       () => choice('americano'),
@@ -552,10 +582,53 @@ test('unmentioned or illegal temperature stays unspecified and is not invented',
     ]);
     const events = [];
     const summary = await runCart({}, '来一杯美式', (event) => events.push(event), { callJev });
-    assert.deepEqual(summary.cart, ['美式'], String(token));
-    assert.equal(events.find((event) => event.type === 'temperature').temperature, 'unspecified', String(token));
-    assert.equal(summary.cart.some((name) => name.includes('热') || name.includes('冰')), false);
+    assert.deepEqual(summary.cart, ['美式 · 冰'], String(token));
+    const temperature = events.find((event) => event.type === 'temperature');
+    assert.equal(temperature.temperature, 'unspecified', String(token));
+    assert.equal(temperature.applied, 'iced', String(token));
+    assert.equal(events.find((event) => event.type === 'added').item, '美式 · 冰', String(token));
   }
+});
+
+test('one of each with unspecified temperature ices coffees and leaves hot chocolate', async () => {
+  const steps = MENU.flatMap((item) => [
+    () => choice(item.id),
+    (payload) => {
+      if (item.temperature) {
+        assert.ok(payload.questions.temperature, item.id);
+        return quantity('one', 1, { temperature: 'unspecified' });
+      }
+      assert.equal(payload.questions.temperature, undefined, item.id);
+      return quantity('one');
+    },
+    () => check(0.9),
+  ]);
+  const { callJev } = script(steps);
+  const events = [];
+  const summary = await runCart({}, '菜单上每样都来一份', (event) => events.push(event), { callJev });
+  assert.deepEqual(summary.cart, [
+    '美式 · 冰',
+    '拿铁 · 冰',
+    '燕麦拿铁 · 冰',
+    '卡布奇诺 · 冰',
+    '热巧克力',
+    '麦芬',
+    '司康',
+  ]);
+  const temps = events.filter((event) => event.type === 'temperature');
+  assert.deepEqual(
+    temps.map((event) => event.item),
+    ['美式', '拿铁', '燕麦拿铁', '卡布奇诺'],
+  );
+  for (const event of temps) {
+    assert.equal(event.temperature, 'unspecified', event.item);
+    assert.equal(event.applied, 'iced', event.item);
+  }
+  assert.equal(
+    events.some((event) => event.type === 'added' && event.item === '热巧克力 · 冰'),
+    false,
+  );
+  assert.equal(events.find((event) => event.type === 'added' && event.base === '热巧克力').applied, null);
 });
 
 test('热巧克力 is hot-only and does not get a temperature choice', async () => {
@@ -578,6 +651,11 @@ test('热巧克力 is hot-only and does not get a temperature choice', async () 
   const summary = await runCart({}, '热巧克力', (event) => events.push(event), { callJev });
   assert.deepEqual(summary.cart, ['热巧克力']);
   assert.equal(events.some((event) => event.type === 'temperature'), false);
+  const added = events.find((event) => event.type === 'added');
+  assert.equal(added.item, '热巧克力');
+  assert.equal(added.temperature, null);
+  assert.equal(added.applied, null);
+  assert.equal(summary.cart.some((name) => name.includes('·')), false);
 });
 
 test('an invalid quantity still reports 数量非法 and does not become an off-menu ticket', async () => {
@@ -592,7 +670,7 @@ test('an invalid quantity still reports 数量非法 and does not become an off-
   assert.equal(summary.message, INVALID_QTY_MESSAGE);
 });
 
-const ONE_EACH = MENU.map((item) => item.name);
+const ONE_EACH = MENU.map((item) => (item.temperature ? `${item.name} · 冰` : item.name));
 
 function everythingAnswer({ choice: picked = 'done', noul = 0.92, onMenu = 0.12, temperature = 'unspecified' } = {}) {
   return {
@@ -648,10 +726,11 @@ test('所有的都来一份 yields one of every menu item', async () => {
   assert.equal(events.some((event) => event.type === 'unmet'), false);
   assert.equal(events.filter((event) => event.type === 'added').length, MENU.length);
   assert.ok(events.filter((event) => event.type === 'quantity').every((event) => event.quantity === 'one' && event.count === 1));
-  assert.equal(summary.cart.some((name) => name.includes('·')), false);
+  assert.equal(summary.cart.includes('热巧克力 · 冰'), false);
   const temperatures = events.filter((event) => event.type === 'temperature');
   assert.equal(temperatures.length, MENU.filter((item) => item.temperature).length);
-  assert.ok(temperatures.every((event) => event.temperature === 'unspecified'));
+  assert.ok(temperatures.every((event) => event.temperature === 'unspecified' && event.applied === 'iced'));
+  assert.equal(events.find((event) => event.type === 'added' && event.base === '热巧克力').applied, null);
 });
 
 test('one of each and 全部来一份 use the same whole-menu path', async () => {
@@ -740,10 +819,10 @@ test('one of each after a named item adds only what is still remaining', async (
   ]);
   const summary = await runCart({}, '先来一杯拿铁，其余每样一份', () => {}, { callJev });
   assert.deepEqual(summary.items, [
-    { name: '拿铁', count: 1 },
-    { name: '美式', count: 1 },
-    { name: '燕麦拿铁', count: 1 },
-    { name: '卡布奇诺', count: 1 },
+    { name: '拿铁 · 冰', count: 1 },
+    { name: '美式 · 冰', count: 1 },
+    { name: '燕麦拿铁 · 冰', count: 1 },
+    { name: '卡布奇诺 · 冰', count: 1 },
     { name: '热巧克力', count: 1 },
     { name: '麦芬', count: 1 },
     { name: '司康', count: 1 },
