@@ -4,9 +4,9 @@
  *   PORT=8787 node src/server.mjs
  */
 import http from 'node:http';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { MENU, menuNames } from './menu.mjs';
 import { readConfig, PROJECT_ROOT } from './jev.mjs';
 import { runCart } from './cart.mjs';
@@ -14,6 +14,30 @@ import { runCart } from './cart.mjs';
 const WEB_ROOT = path.join(PROJECT_ROOT, 'web');
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '0.0.0.0';
+
+/** 进程启动时按文件字节计算 CSS/JS 哈希，写出 HTML 时再注入。 */
+const HASHED_ASSETS = ['styles.css', 'app.js'];
+
+function hashFile(absPath) {
+  const bytes = fs.readFileSync(absPath);
+  return crypto.createHash('sha256').update(bytes).digest('hex').slice(0, 12);
+}
+
+const assetHashes = new Map(
+  HASHED_ASSETS.map((name) => [name, hashFile(path.join(WEB_ROOT, name))]),
+);
+
+function renderIndexHtml(raw) {
+  const css = assetHashes.get('styles.css');
+  const js = assetHashes.get('app.js');
+  const html = raw
+    .replaceAll('href="/styles.css"', `href="/styles.css?v=${css}"`)
+    .replaceAll('src="/app.js"', `src="/app.js?v=${js}"`);
+  if (!html.includes(`/styles.css?v=${css}`) || !html.includes(`/app.js?v=${js}`)) {
+    throw new Error('index.html 缺少样式或脚本标签，无法注入内容哈希');
+  }
+  return html;
+}
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -40,15 +64,23 @@ function sendJson(res, status, body) {
 }
 
 function safeJoin(root, urlPath) {
-  const decoded = decodeURIComponent((urlPath || '/').split('?')[0]);
+  const decoded = decodeURIComponent(urlPath || '/');
   const rel = decoded === '/' ? 'index.html' : decoded.replace(/^\/+/, '');
   const full = path.normalize(path.join(root, rel));
   if (!full.startsWith(root)) return null;
   return full;
 }
 
-async function serveStatic(req, res) {
-  const filePath = safeJoin(WEB_ROOT, req.url || '/');
+function cacheControlFor(filePath, version) {
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === '.html') return 'no-cache';
+  const hash = assetHashes.get(path.basename(filePath));
+  if (hash) return version === hash ? 'public, max-age=31536000, immutable' : 'no-cache';
+  return 'public, max-age=60';
+}
+
+async function serveStatic(req, res, url) {
+  const filePath = safeJoin(WEB_ROOT, url.pathname);
   if (!filePath) {
     res.writeHead(403).end('Forbidden');
     return;
@@ -61,15 +93,23 @@ async function serveStatic(req, res) {
     res.writeHead(404).end('Not found');
     return;
   }
+  const ext = path.extname(target).toLowerCase();
+  const headers = {
+    'Content-Type': MIME[ext] || 'application/octet-stream',
+    'Cache-Control': cacheControlFor(target, url.searchParams.get('v')),
+  };
   try {
+    if (path.basename(target) === 'index.html') {
+      const html = renderIndexHtml(await fs.promises.readFile(target, 'utf8'));
+      res.writeHead(200, headers);
+      res.end(req.method === 'HEAD' ? undefined : html);
+      return;
+    }
     const data = await fs.promises.readFile(target);
-    const ext = path.extname(target).toLowerCase();
-    res.writeHead(200, {
-      'Content-Type': MIME[ext] || 'application/octet-stream',
-      'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=60',
-    });
-    res.end(data);
-  } catch {
+    res.writeHead(200, headers);
+    res.end(req.method === 'HEAD' ? undefined : data);
+  } catch (error) {
+    if (error?.message?.includes('无法注入')) throw error;
     res.writeHead(404).end('Not found');
   }
 }
@@ -159,7 +199,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/health') return handleHealth(req, res);
     if (req.method === 'GET' && url.pathname === '/api/menu') return handleMenu(req, res);
     if (req.method === 'POST' && url.pathname === '/api/order') return handleOrder(req, res);
-    if (req.method === 'GET' || req.method === 'HEAD') return serveStatic(req, res);
+    if (req.method === 'GET' || req.method === 'HEAD') return serveStatic(req, res, url);
     res.writeHead(405).end('Method not allowed');
   } catch (error) {
     console.error(error);
@@ -168,8 +208,13 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+renderIndexHtml(fs.readFileSync(path.join(WEB_ROOT, 'index.html'), 'utf8'));
+
 server.listen(PORT, HOST, () => {
   const config = readConfig();
   console.log(`coffee-cart demo  http://${HOST === '0.0.0.0' ? '127.0.0.1' : HOST}:${PORT}`);
   console.log(`Jev key：${config.apiKey ? '已设置' : '未设置'}  model=${config.model}`);
+  console.log(
+    `assets  styles.css?v=${assetHashes.get('styles.css')}  app.js?v=${assetHashes.get('app.js')}`,
+  );
 });

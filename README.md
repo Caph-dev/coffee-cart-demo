@@ -2,7 +2,7 @@
 
 公司内部点咖啡 demo：用 [Jev](https://ai.caph.me) 的 **Choice 循环 + shopping cart + last_added check**，把一句口语点单写成订单。
 
-前端按 [taste-skill](https://github.com/Leonxlnx/taste-skill) 做成「点单小票」页，适合当面演示。
+前端是当面演示用的点单页：预设对话框，点选后分成决策过程与小票两栏。
 
 ## 快速开始
 
@@ -36,7 +36,7 @@ npm start
 | `src/cart.mjs` | Choice 循环（事件流） |
 | `src/order.mjs` | CLI |
 | `src/server.mjs` | 静态站点 + `POST /api/order`（SSE） |
-| `web/` | taste-skill 前端 |
+| `web/` | 点单页（对话框 → 决策过程 / 小票） |
 
 ## API
 
@@ -57,6 +57,6 @@ npm start
 
 ## 前端
 
-单页对话框：选一句预设点单 → 切到小票，SSE 逐步写入。用来展示 **Jev + 多意图购物车**。
+单页：选一句预设点单 → 左侧流式决策过程，右侧小票只写入已确认的饮品。用来展示 **Jev + 多意图购物车**。静态资源在服务启动时按文件内容哈希，HTML 为 `Cache-Control: no-cache`。
 
 启动：`npm start`，打开对应端口；线上：`https://coffee-demo.caph.me`。

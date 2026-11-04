@@ -3,52 +3,71 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Coffee Cart · Jev 多意图点单</title>
+    <title>点单 · Jev 多意图</title>
     <meta
       name="description"
-      content="对话框点单 → 小票逐步填满。演示 Jev Choice 循环与多意图购物车。"
+      content="选一句点单，左侧看决策过程，右侧小票只留下确认过的饮品。"
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500&family=Noto+Serif+SC:wght@500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css?v=e734046" />
+    <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <main class="stage">
       <section class="dialog" id="dialog" aria-labelledby="dialog-title">
         <p class="dialog__eyebrow">Jev · 多意图</p>
         <h1 class="dialog__title" id="dialog-title">今天喝点什么？</h1>
-        <p class="dialog__lede">选一句点单，模型会按意图逐件写入小票。</p>
+        <p class="dialog__lede">选一句。决策过程与小票分开，<br />小票只留下确认过的。</p>
         <div class="dialog__choices" role="group" aria-label="点单选项">
           <button type="button" class="choice" data-request="来两杯燕麦拿铁，再来个麦芬">
-            两杯燕麦拿铁，再来个麦芬
+            <span>两杯燕麦拿铁，再来个麦芬</span>
           </button>
           <button type="button" class="choice" data-request="美式热的，再来热巧克力">
-            美式热的，再来热巧克力
+            <span>美式热的，再来热巧克力</span>
           </button>
           <button type="button" class="choice" data-request="那个绿色抹茶拿铁">
-            那个绿色抹茶拿铁
+            <span>那个绿色抹茶拿铁</span>
           </button>
           <button type="button" class="choice" data-request="来一杯拿铁">
-            来一杯拿铁
+            <span>来一杯拿铁</span>
           </button>
         </div>
         <p class="dialog__note">菜单无抹茶；菜单外意图会空票收场。</p>
       </section>
 
-      <article class="ticket" id="ticket" hidden aria-live="polite" aria-labelledby="ticket-title">
-        <div class="ticket__top">
-          <h2 class="ticket__title" id="ticket-title">点单小票</h2>
-          <button type="button" class="ticket__back" id="ticket-back">再点一次</button>
+      <section class="result" id="result" hidden>
+        <header class="result__bar">
+          <p class="result__request" id="result-request"></p>
+          <button type="button" class="result__back" id="ticket-back">再点一次</button>
+        </header>
+        <div class="result__columns">
+          <section class="process" aria-labelledby="process-title">
+            <div class="process__head">
+              <h2 class="process__title" id="process-title">决策过程</h2>
+              <p class="process__hint">选择 · 核对 · 收票</p>
+            </div>
+            <ol class="process__log" id="process-log" aria-live="polite"></ol>
+          </section>
+          <article class="receipt" aria-labelledby="receipt-title">
+            <header class="receipt__head">
+              <h2 class="receipt__title" id="receipt-title">点单小票</h2>
+            </header>
+            <div class="receipt__body">
+              <ul class="receipt__lines" id="receipt-lines" aria-live="polite"></ul>
+              <p class="receipt__placeholder" id="receipt-placeholder">等待确认…</p>
+            </div>
+            <footer class="receipt__total" id="receipt-total" hidden>
+              <span>合计</span>
+              <span id="receipt-total-value"></span>
+            </footer>
+          </article>
         </div>
-        <p class="ticket__request" id="ticket-request"></p>
-        <hr class="ticket__rule" />
-        <ul class="ticket__lines" id="ticket-lines"></ul>
-      </article>
+      </section>
     </main>
-    <script src="/app.js?v=e734046" type="module"></script>
+    <script src="/app.js" type="module"></script>
   </body>
 </html>
