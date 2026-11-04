@@ -1,0 +1,91 @@
+# coffee-cart-demo 运行记录
+# 日期：2026-11-04
+# 模型：jev-latest；接口：${JEV_BASE_URL}${JEV_PATH}（默认 https://ai.caph.me/v1/systemone）
+# key：已设置，未写入本文件
+
+================================================================
+用例 1：来两杯燕麦拿铁，再来个麦芬
+================================================================
+点单原文：来两杯燕麦拿铁，再来个麦芬
+Jev：https://ai.caph.me/v1/systemone model=jev-latest key=已设置
+
+=== 第 1 轮 ===
+调用：POST /systemone model=jev-latest state={request:"来两杯燕麦拿铁，再来个麦芬", cart:[], last_added:null}
+choice：oat_latte（confidence=1.00）
+加入：燕麦拿铁，cart=["燕麦拿铁"]
+check：noul=0.93（阈值 0.45）
+结果：保留 燕麦拿铁。
+cart：["燕麦拿铁"]
+
+=== 第 2 轮 ===
+调用：POST /systemone model=jev-latest state={request:"来两杯燕麦拿铁，再来个麦芬", cart:["燕麦拿铁"], last_added:"燕麦拿铁"}
+choice：oat_latte（confidence=0.90）
+加入：燕麦拿铁，cart=["燕麦拿铁","燕麦拿铁"]
+check：noul=0.90（阈值 0.45）
+结果：保留 燕麦拿铁。
+cart：["燕麦拿铁","燕麦拿铁"]
+
+=== 第 3 轮 ===
+调用：POST /systemone model=jev-latest state={request:"来两杯燕麦拿铁，再来个麦芬", cart:["燕麦拿铁","燕麦拿铁"], last_added:"燕麦拿铁"}
+choice：muffin（confidence=1.00）
+加入：麦芬，cart=["燕麦拿铁","燕麦拿铁","麦芬"]
+check：noul=0.84（阈值 0.45）
+结果：保留 麦芬。
+cart：["燕麦拿铁","燕麦拿铁","麦芬"]
+
+=== 第 4 轮 ===
+调用：POST /systemone model=jev-latest state={request:"来两杯燕麦拿铁，再来个麦芬", cart:["燕麦拿铁","燕麦拿铁","麦芬"], last_added:"麦芬"}
+choice：done（confidence=1.00）
+用户选择 done，结束点单。
+
+=== 最终订单 ===
+- 燕麦拿铁 × 2
+- 麦芬 × 1
+合计：3 件
+
+================================================================
+用例 2：那个绿色抹茶拿铁（菜单外）
+================================================================
+点单原文：那个绿色抹茶拿铁
+Jev：https://ai.caph.me/v1/systemone model=jev-latest key=已设置
+
+=== 第 1 轮 ===
+调用：POST /systemone model=jev-latest state={request:"那个绿色抹茶拿铁", cart:[], last_added:null}
+choice：done（confidence=0.52）
+用户没有从菜单选到任何商品。菜单：美式、拿铁、燕麦拿铁、卡布奇诺、热巧克力、麦芬、司康
+
+=== 最终订单 ===
+（空）没有可下单的商品。
+菜单：美式、拿铁、燕麦拿铁、卡布奇诺、热巧克力、麦芬、司康
+
+================================================================
+用例 3：美式热的，再来热巧克力
+================================================================
+点单原文：美式热的，再来热巧克力
+Jev：https://ai.caph.me/v1/systemone model=jev-latest key=已设置
+
+=== 第 1 轮 ===
+调用：POST /systemone model=jev-latest state={request:"美式热的，再来热巧克力", cart:[], last_added:null}
+choice：americano（confidence=0.99）
+加入：美式，cart=["美式"]
+check：noul=0.94（阈值 0.45）
+结果：保留 美式。
+cart：["美式"]
+
+=== 第 2 轮 ===
+调用：POST /systemone model=jev-latest state={request:"美式热的，再来热巧克力", cart:["美式"], last_added:"美式"}
+choice：hot_chocolate（confidence=0.99）
+加入：热巧克力，cart=["美式","热巧克力"]
+check：noul=0.87（阈值 0.45）
+结果：保留 热巧克力。
+cart：["美式","热巧克力"]
+
+=== 第 3 轮 ===
+调用：POST /systemone model=jev-latest state={request:"美式热的，再来热巧克力", cart:["美式","热巧克力"], last_added:"热巧克力"}
+choice：done（confidence=0.98）
+用户选择 done，结束点单。
+
+=== 最终订单 ===
+- 美式 × 1
+- 热巧克力 × 1
+合计：2 件

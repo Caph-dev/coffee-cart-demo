@@ -1,0 +1,15 @@
+{
+  "name": "coffee-cart-demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "公司内部点咖啡 demo：Jev Choice 循环 + shopping cart",
+  "scripts": {
+    "start": "node src/order.mjs",
+    "order": "node src/order.mjs",
+    "dry-run": "node src/order.mjs --dry-run \"来两杯拿铁再加一个麦芬\""
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
