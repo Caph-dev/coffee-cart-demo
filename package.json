@@ -1,11 +1,12 @@
 {
   "name": "coffee-cart-demo",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
-  "description": "公司内部点咖啡 demo：Jev Choice 循环 + shopping cart",
+  "description": "公司内部点咖啡 demo：Jev Choice 循环 + shopping cart，附 taste-skill 前端",
   "scripts": {
-    "start": "node src/order.mjs",
+    "start": "node src/server.mjs",
+    "serve": "node src/server.mjs",
     "order": "node src/order.mjs",
     "dry-run": "node src/order.mjs --dry-run \"来两杯拿铁再加一个麦芬\""
   },

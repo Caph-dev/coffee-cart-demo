@@ -1,4 +1,6 @@
 .env
 node_modules/
-*.log
 .DS_Store
+*.log
+.taste-skill/direction-sheet.txt
+.taste-skill/inspect/
