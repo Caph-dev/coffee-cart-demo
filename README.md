@@ -55,8 +55,8 @@ npm start
 | `PORT` | `8787` |
 | `HOST` | `0.0.0.0` |
 
-## 设计说明
+## 前端
 
-方向：`page-is-the-object`（页面即物件）——办公室点单小票。
+单页对话框：选一句预设点单 → 切到小票，SSE 逐步写入。用来展示 **Jev + 多意图购物车**。
 
-色板 Forest and lime；字体 Archivo；图像含 Met 馆藏咖啡器物与 Commons 咖啡短片，页脚有完整署名。
+启动：`npm start`，打开对应端口；线上：`https://coffee-demo.caph.me`。

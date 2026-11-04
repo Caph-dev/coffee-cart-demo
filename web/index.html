@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Coffee Cart · 办公室点单小票</title>
+    <title>Coffee Cart · Jev 多意图点单</title>
     <meta
       name="description"
-      content="用 Jev shopping-cart 把一句口语点单写成纸质小票。Choice 循环逐件入车，check 把菜单外的货踢掉。"
+      content="对话框点单 → 小票逐步填满。演示 Jev Choice 循环与多意图购物车。"
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -17,312 +17,38 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div class="page-frame" aria-hidden="true"><span class="page-frame__l"></span><span class="page-frame__r"></span></div>
-    <header class="hero" id="order">
-      <div class="hero__atmosphere" aria-hidden="true" data-crossfade>
-        <img class="is-active" src="/assets/coast-626.jpg" width="1600" height="1000" alt="" />
-        <img src="/assets/coast-640.jpg" width="1600" height="1000" alt="" />
-        <img src="/assets/coast-1052.jpg" width="1600" height="1000" alt="" />
-        <img src="/assets/coast-77.jpg" width="1600" height="1000" alt="" />
-      </div>
-
-      <div class="hero__intro reveal">
-        <p class="hero__lede">办公室的一句点单，变成一张会自己填的纸质小票。</p>
-      </div>
-
-      <article class="ticket reveal" id="ticket" aria-labelledby="ticket-title">
-        <div class="ticket__header">
-          <h1 class="ticket__title" id="ticket-title">Coffee Cart 点单小票</h1>
+    <main class="stage">
+      <section class="dialog" id="dialog" aria-labelledby="dialog-title">
+        <p class="dialog__eyebrow">Jev · 多意图</p>
+        <h1 class="dialog__title" id="dialog-title">今天喝点什么？</h1>
+        <p class="dialog__lede">选一句点单，模型会按意图逐件写入小票。</p>
+        <div class="dialog__choices" role="group" aria-label="点单选项">
+          <button type="button" class="choice" data-request="来两杯燕麦拿铁，再来个麦芬">
+            两杯燕麦拿铁，再来个麦芬
+          </button>
+          <button type="button" class="choice" data-request="美式热的，再来热巧克力">
+            美式热的，再来热巧克力
+          </button>
+          <button type="button" class="choice" data-request="那个绿色抹茶拿铁">
+            那个绿色抹茶拿铁
+          </button>
+          <button type="button" class="choice" data-request="来一杯拿铁">
+            来一杯拿铁
+          </button>
         </div>
+        <p class="dialog__note">菜单无抹茶；菜单外意图会空票收场。</p>
+      </section>
+
+      <article class="ticket" id="ticket" hidden aria-live="polite" aria-labelledby="ticket-title">
+        <div class="ticket__top">
+          <h2 class="ticket__title" id="ticket-title">点单小票</h2>
+          <button type="button" class="ticket__back" id="ticket-back">再点一次</button>
+        </div>
+        <p class="ticket__request" id="ticket-request"></p>
         <hr class="ticket__rule" />
-
-        <div class="ticket__form" id="order-form">
-          <p class="ticket__pick-label" id="presets-label">选一句点单</p>
-          <div class="ticket__presets" role="group" aria-labelledby="presets-label">
-            <button type="button" class="ticket__preset" data-request="来两杯燕麦拿铁，再来个麦芬">
-              两杯燕麦拿铁 + 麦芬
-            </button>
-            <button type="button" class="ticket__preset" data-request="美式热的，再来热巧克力">
-              美式 + 热巧克力
-            </button>
-            <button type="button" class="ticket__preset" data-request="那个绿色抹茶拿铁">
-              抹茶拿铁（菜单外）
-            </button>
-            <button type="button" class="ticket__preset" data-request="来一杯拿铁">
-              一杯拿铁
-            </button>
-          </div>
-        </div>
-
-        <ul class="ticket__lines" id="ticket-lines" aria-live="polite"></ul>
-        <button type="button" class="ticket__reset" id="ticket-reset">再开一张</button>
+        <ul class="ticket__lines" id="ticket-lines"></ul>
       </article>
-
-      
-    </header>
-
-    <div class="balance-band" aria-hidden="true">
-      <img src="/assets/coast-853.jpg" width="120" height="80" alt="" />
-      <img src="/assets/coffee-cup.jpg" width="120" height="80" alt="" />
-      <img src="/assets/coast-640.jpg" width="120" height="80" alt="" />
-      <img src="/assets/coffee-pot.jpg" width="120" height="80" alt="" />
-      <img src="/assets/coast-77.jpg" width="120" height="80" alt="" />
-      <img src="/assets/coffee-urn.jpg" width="120" height="80" alt="" />
-      <img src="/assets/coast-1049.jpg" width="120" height="80" alt="" />
-      <img src="/assets/coffee-pot-2.jpg" width="120" height="80" alt="" />
-    </div>
-
-
-    <section class="itinerary" aria-labelledby="how-title">
-      <div class="itinerary__inner reveal">
-        <h2 class="itinerary__heading" id="how-title">How the slip fills</h2>
-        <p class="itinerary__intro">一张小票背后的四步行程，也是 Jev Choice 循环本身。</p>
-        <ol class="itinerary__steps">
-          <li class="itinerary__step">
-            <span class="itinerary__time">01 · Ask</span>
-            <div class="itinerary__body">
-              <strong>读原话</strong>
-              <p>把整句口语点单放进 state.request，购物车从空开始。</p>
-            </div>
-          </li>
-          <li class="itinerary__step">
-            <span class="itinerary__time">02 · Choice</span>
-            <div class="itinerary__body">
-              <strong>只挑一件</strong>
-              <p>从固定菜单里选下一件加入；多杯就多轮，每轮只加一件。</p>
-            </div>
-          </li>
-          <li class="itinerary__step">
-            <span class="itinerary__time">03 · Check</span>
-            <div class="itinerary__body">
-              <strong>核对 last_added</strong>
-              <p>用 noul 判断刚加入的货是否真被原话覆盖；不够就踢掉。</p>
-            </div>
-          </li>
-          <li class="itinerary__step">
-            <span class="itinerary__time">04 · Done</span>
-            <div class="itinerary__body">
-              <strong>写完收票</strong>
-              <p>覆盖齐了，或菜单再也装不下剩下的请求，就选 done。</p>
-            </div>
-          </li>
-        </ol>
-      </div>
-    </section>
-
-    <section class="menu" aria-labelledby="menu-title">
-      <div class="menu__sheet reveal">
-        <h2 class="menu__heading" id="menu-title">Today’s board</h2>
-        <p class="menu__note">七样固定菜单。抹茶故意不在上面。</p>
-
-        <div class="menu__group">
-          <h3 class="menu__group-name">Drinks</h3>
-          <ul class="menu__items">
-            <li class="menu__item">
-              <div class="menu__item-row">
-                <span class="menu__item-name">美式</span>
-                <span class="menu__item-mark">Americano</span>
-              </div>
-              <p class="menu__item-desc">浓缩加热水，热或冰</p>
-            </li>
-            <li class="menu__item">
-              <div class="menu__item-row">
-                <span class="menu__item-name">拿铁</span>
-                <span class="menu__item-mark">Latte</span>
-              </div>
-              <p class="menu__item-desc">浓缩加牛奶，热或冰</p>
-            </li>
-            <li class="menu__item">
-              <div class="menu__item-row">
-                <span class="menu__item-name">燕麦拿铁</span>
-                <span class="menu__item-mark">Oat latte</span>
-              </div>
-              <p class="menu__item-desc">浓缩加燕麦奶，热或冰</p>
-            </li>
-            <li class="menu__item">
-              <div class="menu__item-row">
-                <span class="menu__item-name">卡布奇诺</span>
-                <span class="menu__item-mark">Cappuccino</span>
-              </div>
-              <p class="menu__item-desc">浓缩、牛奶与奶泡</p>
-            </li>
-            <li class="menu__item">
-              <div class="menu__item-row">
-                <span class="menu__item-name">热巧克力</span>
-                <span class="menu__item-mark">Hot chocolate</span>
-              </div>
-              <p class="menu__item-desc">可可饮品，不含咖啡</p>
-            </li>
-          </ul>
-        </div>
-
-        <div class="menu__group">
-          <h3 class="menu__group-name">Bake</h3>
-          <ul class="menu__items">
-            <li class="menu__item">
-              <div class="menu__item-row">
-                <span class="menu__item-name">麦芬</span>
-                <span class="menu__item-mark">Muffin</span>
-              </div>
-              <p class="menu__item-desc">烘焙点心</p>
-            </li>
-            <li class="menu__item">
-              <div class="menu__item-row">
-                <span class="menu__item-name">司康</span>
-                <span class="menu__item-mark">Scone</span>
-              </div>
-              <p class="menu__item-desc">烘焙点心</p>
-            </li>
-          </ul>
-        </div>
-
-        <p class="menu__hours">
-          工作日随时可演示<br />
-          不接外送 · 只跑这一套购物车
-        </p>
-      </div>
-    </section>
-
-    <section class="showcase" aria-labelledby="showcase-title">
-      <div class="showcase__media" aria-hidden="true">
-        <video
-          autoplay
-          muted
-          loop
-          playsinline
-          preload="metadata"
-          poster="/assets/sugar-falling-into-coffee-poster.jpg"
-          width="646"
-          height="480"
-        >
-          <source src="/assets/sugar-falling-into-coffee.webm" type="video/webm" />
-        </video>
-      </div>
-      <div class="showcase__copy reveal">
-        <h2 id="showcase-title">Three slips already cut</h2>
-        <p>真实跑过的三张票。一杯被菜单拦住的抹茶，两张写满的正常单。</p>
-        <p>下面是输出本身：纸片上是模型逐步写下的行。</p>
-      </div>
-      <div class="showcase__slips">
-        <article class="slip">
-          <p class="slip__title">燕麦拿铁 ×2 · 麦芬</p>
-          <p class="slip__divider">············</p>
-          <p>「来两杯燕麦拿铁，再来个麦芬」</p>
-          <p class="slip__muted">choice oat_latte · keep 0.93</p>
-          <p class="slip__muted">choice oat_latte · keep 0.90</p>
-          <p class="slip__muted">choice muffin · keep 0.84</p>
-          <p>done · 3 件</p>
-        </article>
-        <article class="slip slip--photo">
-          <img
-            src="/assets/coffee-cup.jpg"
-            width="760"
-            height="1000"
-            alt="十八世纪青花瓷咖啡杯"
-           
-            decoding="async"
-          />
-        </article>
-        <article class="slip">
-          <p class="slip__title">抹茶 · 空票</p>
-          <p class="slip__divider">············</p>
-          <p>「那个绿色抹茶拿铁」</p>
-          <p class="slip__muted">choice done · 0.52</p>
-          <p>菜单外，购物车保持空</p>
-          <p class="slip__muted">美式 拿铁 燕麦拿铁…</p>
-        </article>
-        <article class="slip slip--photo">
-          <img
-            src="/assets/coffee-pot.jpg"
-            width="760"
-            height="1000"
-            alt="银质咖啡壶"
-           
-            decoding="async"
-          />
-        </article>
-        <article class="slip">
-          <p class="slip__title">美式 · 热巧克力</p>
-          <p class="slip__divider">············</p>
-          <p>「美式热的，再来热巧克力」</p>
-          <p class="slip__muted">choice americano · keep 0.94</p>
-          <p class="slip__muted">choice hot_chocolate · keep 0.87</p>
-          <p>done · 2 件</p>
-        </article>
-        <article class="slip slip--photo">
-          <img
-            src="/assets/coffee-urn.jpg"
-            width="680"
-            height="850"
-            alt="银质咖啡瓮"
-           
-            decoding="async"
-          />
-        </article>
-      </div>
-    </section>
-
-    <section class="cta" aria-labelledby="cta-title">
-      <div class="cta__copy reveal">
-        <p>点一下预设点单，看着小票一行行写出来，比看日志更适合演示。</p>
-      </div>
-      <div class="cta__card reveal">
-        <h2 id="cta-title">Try a line</h2>
-        <p>回到第一张票，选一句预设点单。</p>
-        <a class="cta__button" href="#order">回到小票</a>
-      </div>
-    </section>
-
-    <footer class="site-footer">
-      <div class="site-footer__card reveal">
-        <div class="site-footer__stamp" aria-hidden="true">
-          <img
-            src="/assets/coffee-pot-2.jpg"
-            width="88"
-            height="117"
-            alt=""
-           
-            decoding="async"
-          />
-        </div>
-        <div class="site-footer__signoff">
-          <h2>Back of the slip</h2>
-          <p>这是公司内部的 Jev shopping-cart 演示页，不是对外点餐系统。</p>
-        </div>
-        <nav class="site-footer__address" aria-label="链接">
-          <a href="https://github.com/Caph-dev/coffee-cart-demo">GitHub 仓库</a>
-          <a href="https://ai.caph.me">Jev · ai.caph.me</a>
-          <a href="https://caph.me">caph.me</a>
-          <a href="#order">再开一张票</a>
-        </nav>
-        <p class="site-footer__imprint">Coffee Cart Demo · printed for demos · 2026</p>
-      </div>
-      <p class="credits">
-        Pictures and footage:
-        <a href="https://www.metmuseum.org/art/collection/search/204454">“Coffee urn”</a>
-        by Tijmon Suyk, 1733,
-        <a href="https://creativecommons.org/publicdomain/zero/1.0/">public domain (CC0)</a>, via The
-        Metropolitan Museum of Art;
-        <a href="https://www.metmuseum.org/art/collection/search/2109">“Coffee Cup”</a>
-        by Chinese maker, ca. 1784,
-        <a href="https://creativecommons.org/publicdomain/zero/1.0/">public domain (CC0)</a>, via The
-        Metropolitan Museum of Art;
-        <a href="https://www.metmuseum.org/art/collection/search/443173">“Coffee Pot”</a>, 1809–60,
-        <a href="https://creativecommons.org/publicdomain/zero/1.0/">public domain (CC0)</a>, via The
-        Metropolitan Museum of Art;
-        <a href="https://www.metmuseum.org/art/collection/search/62526">“Coffee Pot”</a>
-        by Japan maker, 1650–75,
-        <a href="https://creativecommons.org/publicdomain/zero/1.0/">public domain (CC0)</a>, via The
-        Metropolitan Museum of Art;
-        <a href="https://commons.wikimedia.org/wiki/File:Sugar_falling_into_coffee.webm"
-          >“Sugar falling into coffee”</a
-        >
-        by Anselm Schüler,
-        <a href="https://creativecommons.org/licenses/by-sa/4.0">CC BY-SA 4.0</a>, via Wikimedia
-        Commons. Atmosphere photographs from the Coast set via picsum.photos (Unsplash licence).
-      </p>
-    </footer>
-
+    </main>
     <script src="/app.js" type="module"></script>
   </body>
 </html>

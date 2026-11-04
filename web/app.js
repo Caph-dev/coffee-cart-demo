@@ -1,18 +1,27 @@
+const dialog = document.getElementById('dialog');
 const ticket = document.getElementById('ticket');
-const form = document.getElementById('order-form');
 const lines = document.getElementById('ticket-lines');
-const resetBtn = document.getElementById('ticket-reset');
-const presetBtns = [...document.querySelectorAll('.ticket__preset')];
+const requestEl = document.getElementById('ticket-request');
+const backBtn = document.getElementById('ticket-back');
+const choices = [...document.querySelectorAll('.choice')];
 
-function setPresetsDisabled(disabled) {
-  for (const btn of presetBtns) btn.disabled = disabled;
+function setChoicesDisabled(disabled) {
+  for (const btn of choices) btn.disabled = disabled;
 }
 
-function clearTicket() {
+function showDialog() {
+  ticket.hidden = true;
+  dialog.hidden = false;
   lines.innerHTML = '';
-  ticket.classList.remove('is-filling', 'is-done', 'is-error');
-  form.hidden = false;
-  setPresetsDisabled(false);
+  requestEl.textContent = '';
+  setChoicesDisabled(false);
+}
+
+function showTicket(request) {
+  dialog.hidden = true;
+  ticket.hidden = false;
+  requestEl.textContent = request;
+  lines.innerHTML = '';
 }
 
 function addLine({ left, right = '', kind = '' }, delayIndex = 0) {
@@ -28,7 +37,6 @@ function addLine({ left, right = '', kind = '' }, delayIndex = 0) {
     li.appendChild(b);
   }
   lines.appendChild(li);
-  return li;
 }
 
 function summarize(cart) {
@@ -38,12 +46,8 @@ function summarize(cart) {
 }
 
 async function runOrder(request) {
-  ticket.classList.add('is-filling');
-  ticket.classList.remove('is-done', 'is-error');
-  form.hidden = true;
-  lines.innerHTML = '';
-  addLine({ left: request, kind: 'status' }, 0);
-  addLine({ left: '正在点单…', kind: 'status' }, 1);
+  showTicket(request);
+  addLine({ left: '正在点单…', kind: 'status' }, 0);
 
   const response = await fetch('/api/order', {
     method: 'POST',
@@ -65,7 +69,7 @@ async function runOrder(request) {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
-  let lineIndex = 2;
+  let lineIndex = 1;
   let sawFinal = false;
 
   const handleEvent = (event) => {
@@ -74,14 +78,7 @@ async function runOrder(request) {
         const label = event.matched?.name || event.raw || '（空）';
         const conf =
           typeof event.confidence === 'number' ? event.confidence.toFixed(2) : '';
-        addLine(
-          {
-            left: `选择 ${label}`,
-            right: conf,
-            kind: 'status',
-          },
-          lineIndex++,
-        );
+        addLine({ left: `选择 ${label}`, right: conf, kind: 'status' }, lineIndex++);
         break;
       }
       case 'added':
@@ -92,8 +89,7 @@ async function runOrder(request) {
           addLine(
             {
               left: `保留 ${event.item}`,
-              right:
-                event.value == null ? '—' : `${event.kind} ${event.value.toFixed(2)}`,
+              right: event.value == null ? '—' : `${event.kind} ${event.value.toFixed(2)}`,
               kind: 'status',
             },
             lineIndex++,
@@ -130,17 +126,10 @@ async function runOrder(request) {
           addLine({ left: '（空票）', kind: 'total' }, lineIndex++);
         } else {
           for (const item of items) {
-            addLine(
-              { left: item.name, right: `× ${item.count}`, kind: '' },
-              lineIndex++,
-            );
+            addLine({ left: item.name, right: `× ${item.count}` }, lineIndex++);
           }
-          addLine(
-            { left: '合计', right: `${event.total} 件`, kind: 'total' },
-            lineIndex++,
-          );
+          addLine({ left: '合计', right: `${event.total} 件`, kind: 'total' }, lineIndex++);
         }
-        ticket.classList.add('is-done');
         break;
       }
       case 'error':
@@ -157,9 +146,7 @@ async function runOrder(request) {
     const chunks = buffer.split('\n\n');
     buffer = chunks.pop() || '';
     for (const chunk of chunks) {
-      const dataLine = chunk
-        .split('\n')
-        .find((line) => line.startsWith('data:'));
+      const dataLine = chunk.split('\n').find((line) => line.startsWith('data:'));
       if (!dataLine) continue;
       const payload = dataLine.slice(5).trim();
       if (!payload || payload === '{}') continue;
@@ -167,83 +154,26 @@ async function runOrder(request) {
     }
   }
 
-  if (!sawFinal) {
-    addLine({ left: '连接结束', kind: 'status' }, lineIndex++);
-    ticket.classList.add('is-done');
-  }
+  if (!sawFinal) addLine({ left: '连接结束', kind: 'status' }, lineIndex++);
 }
 
 async function startOrder(request) {
   const text = (request || '').trim();
   if (!text) return;
-  setPresetsDisabled(true);
+  setChoicesDisabled(true);
   try {
     await runOrder(text);
   } catch (error) {
-    ticket.classList.add('is-filling', 'is-error');
-    form.hidden = true;
-    if (!lines.children.length) {
-      addLine({ left: error.message || '出错了', kind: 'status' }, 0);
-    } else {
-      addLine({ left: error.message || '出错了', kind: 'status' }, 99);
-    }
+    showTicket(text);
+    lines.innerHTML = '';
+    addLine({ left: error.message || '出错了', kind: 'status' }, 0);
   } finally {
-    setPresetsDisabled(false);
+    setChoicesDisabled(false);
   }
 }
 
-for (const btn of presetBtns) {
-  btn.addEventListener('click', () => {
-    startOrder(btn.dataset.request || btn.textContent);
-  });
+for (const btn of choices) {
+  btn.addEventListener('click', () => startOrder(btn.dataset.request || btn.textContent));
 }
 
-resetBtn.addEventListener('click', clearTicket);
-
-const frames = document.querySelectorAll('[data-crossfade] img');
-if (frames.length > 1) {
-  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!reduced) {
-    let index = 0;
-    setInterval(() => {
-      frames[index].classList.remove('is-active');
-      index = (index + 1) % frames.length;
-      frames[index].classList.add('is-active');
-    }, 5600);
-  }
-}
-
-const video = document.querySelector('.showcase__media video');
-if (video) {
-  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reduced) {
-    video.removeAttribute('autoplay');
-    video.pause();
-  }
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) video.pause();
-    else if (!reduced) video.play().catch(() => {});
-  });
-}
-
-const revealEls = document.querySelectorAll('.reveal');
-if (revealEls.length && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-  const io = new IntersectionObserver(
-    (entries) => {
-      for (const entry of entries) {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('is-in');
-          io.unobserve(entry.target);
-        }
-      }
-    },
-    { threshold: 0.18, rootMargin: '0px 0px -8% 0px' },
-  );
-  revealEls.forEach((el) => io.observe(el));
-} else {
-  revealEls.forEach((el) => el.classList.add('is-in'));
-}
-
-document.querySelectorAll('.hero .reveal').forEach((el) => {
-  requestAnimationFrame(() => el.classList.add('is-in'));
-});
+backBtn.addEventListener('click', showDialog);
