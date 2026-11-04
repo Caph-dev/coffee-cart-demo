@@ -127,9 +127,13 @@ function renderReceipt() {
   const rows = receiptRows();
   if (!rows.length) {
     receiptLines.replaceChildren();
-    placeholder.hidden = false;
-    placeholder.textContent = receiptMessage || (receiptMode === 'fault' ? '未能写入' : '等待确认…');
-    placeholder.classList.toggle('is-unmet', receiptMode === 'unmet' || receiptMode === 'invalid' || receiptMode === 'empty');
+    const message = receiptMessage || (receiptMode === 'fault' ? '未能写入' : '');
+    placeholder.hidden = message === '';
+    placeholder.textContent = message;
+    placeholder.classList.toggle(
+      'is-unmet',
+      message !== '' && (receiptMode === 'unmet' || receiptMode === 'invalid' || receiptMode === 'empty'),
+    );
   } else {
     placeholder.hidden = true;
     placeholder.classList.remove('is-unmet');
