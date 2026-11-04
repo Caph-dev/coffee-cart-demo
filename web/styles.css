@@ -37,12 +37,15 @@ body {
 
 button {
   font: inherit;
+  margin: 0;
 }
 
 .stage {
+  min-height: 100vh;
   min-height: 100svh;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: clamp(1.25rem, 4vw, 2.5rem);
 }
 
@@ -51,10 +54,16 @@ button {
   width: min(420px, 100%);
 }
 
+.dialog[hidden],
+.ticket[hidden] {
+  display: none !important;
+}
+
 .dialog {
   background: var(--surface);
   padding: clamp(1.5rem, 4vw, 2rem);
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 0.85rem;
 }
 
@@ -84,13 +93,16 @@ button {
 }
 
 .dialog__choices {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 0.55rem;
   margin-top: 0.35rem;
 }
 
 .choice {
+  -webkit-appearance: none;
   appearance: none;
+  display: block;
   border: 0;
   width: 100%;
   text-align: left;
@@ -139,12 +151,9 @@ button {
     1.8% 44%,
     0 42%
   );
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 0.65rem;
-}
-
-.ticket[hidden] {
-  display: none;
 }
 
 .ticket__top {
@@ -165,6 +174,7 @@ button {
 }
 
 .ticket__back {
+  -webkit-appearance: none;
   appearance: none;
   border: 0;
   background: transparent;
@@ -184,7 +194,7 @@ button {
 .ticket__rule {
   height: 0;
   border: 0;
-  border-top: 3px dotted color-mix(in srgb, var(--paper-ink) 35%, transparent);
+  border-top: 3px dotted rgba(15, 31, 16, 0.35);
   margin: 0.15rem 0;
 }
 
@@ -199,8 +209,8 @@ button {
 }
 
 .ticket__line {
-  display: grid;
-  grid-template-columns: 1fr auto;
+  display: flex;
+  justify-content: space-between;
   gap: 0.75rem;
   font-size: var(--step-body);
   opacity: 0;
@@ -211,7 +221,6 @@ button {
 .ticket__line--status {
   color: var(--paper-soft);
   font-size: var(--step-small);
-  grid-template-columns: 1fr;
 }
 
 .ticket__line--reject {
@@ -222,7 +231,7 @@ button {
 .ticket__line--total {
   margin-top: 0.45rem;
   padding-top: 0.5rem;
-  border-top: 3px dotted color-mix(in srgb, var(--paper-ink) 35%, transparent);
+  border-top: 3px dotted rgba(15, 31, 16, 0.35);
   font-weight: 500;
 }
 
