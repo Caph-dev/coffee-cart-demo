@@ -47,8 +47,8 @@ function printHelp() {
 数量 / quantity：Jev 在 one、two、three、invalid 里选。程序不解析数字。
 非法份数（0.7、-1、2^32 等）走 invalid，不写入购物车。
 冷热 / temperature：美式、拿铁、燕麦拿铁、卡布奇诺再问 hot、iced、unspecified。
-没说、常温或互相矛盾都是 unspecified，小票不编一个冷热。热巧克力只卖热的，不再单问。
-每样一份（所有的都来一份、全部来一份、one of each）由 Choice 的 all 或 one_of_each noul 展开成菜单每一件各一份。程序不解析原文。
+没说、常温或互相矛盾都是 unspecified。菜单默认冰，这类咖啡落单写成冰。热巧克力只卖热的，不再单问。
+每样一份（所有的都来一份、全部来一份、one of each）由 Choice 的 all 或 one_of_each noul 展开成菜单每一件各一份。没说整单冷热时，能选冷热的咖啡按默认冰，热巧克力保持原名。程序不解析原文。
 
 环境变量：
   JEV_BASE_URL   默认 https://ai.caph.me/v1
@@ -161,10 +161,16 @@ async function main() {
         console.log(`结果：${event.message || '不在菜单，菜单无法满足'}`);
         break;
       case 'temperature': {
-        const tempLabel = { hot: '热', iced: '冰', unspecified: '未说明' }[event.temperature] || '未说明';
+        const labels = { hot: '热', iced: '冰', unspecified: '未说明' };
+        const said = labels[event.temperature] || '未说明';
+        const appliedMark = labels[event.applied];
+        const appliedNote =
+          event.applied && event.applied !== event.temperature && appliedMark
+            ? `，默认${appliedMark}`
+            : '';
         const tempConf =
           typeof event.confidence === 'number' ? `（confidence=${event.confidence.toFixed(2)}）` : '';
-        console.log(`温度：${event.item} → ${tempLabel}${tempConf}`);
+        console.log(`温度：${event.item} → ${said}${appliedNote}${tempConf}`);
         break;
       }
       case 'ignored':

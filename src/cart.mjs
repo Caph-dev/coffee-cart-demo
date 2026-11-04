@@ -8,17 +8,19 @@
  * 2. all, or a confirmed one_of_each noul, writes one of every remaining
  *    sellable item. Those requests do not name each SKU, so the per-item
  *    exact and last_added checks would reject them and are skipped. Quantity
- *    is one. Temperature stays unspecified unless that same response's
- *    order_temperature choice is hot or iced, and the mark is applied only
- *    to coffees that have a temperature. Hot chocolate is left as-is.
+ *    is one. order_temperature of hot or iced is written on coffees that have
+ *    a temperature. unspecified stays unspecified on the temperature event;
+ *    those receipt lines use the shop default, iced. Hot chocolate is left as-is.
  *    An off-menu extra in the same sentence is not added.
  * 3. For a named item, one request asks exact-item, quantity
  *    (one / two / three / invalid), and temperature (hot / iced / unspecified)
  *    when that drink has a temperature. exact failure does not touch the cart.
- *    invalid quantity does not touch the cart.
+ *    invalid quantity does not touch the cart. This file does not parse the order.
+ *    unspecified stays unspecified on the temperature event. The receipt line
+ *    for a temperature-capable coffee uses the shop default, iced.
  * 4. A legal named line is written, then the last_added noul check still runs.
  */
-import { MENU, menuNames, findMenuChoice } from './menu.mjs';
+import { DEFAULT_TEMPERATURE, MENU, menuNames, findMenuChoice } from './menu.mjs';
 import {
   callJev,
   buildPayload,
@@ -94,10 +96,23 @@ export function classifyTemperature(choice) {
   return { raw, temperature: 'unspecified' };
 }
 
-/** Receipt line. Temperature is shown only when the guest stated hot or iced. */
+/**
+ * What is written on a temperature-capable line after classification.
+ * hot and iced stay as stated. unspecified, and anything else, uses the shop default.
+ */
+export function applyTemperature(classified) {
+  if (classified === 'hot' || classified === 'iced') return classified;
+  return DEFAULT_TEMPERATURE;
+}
+
+/**
+ * Receipt line. Pass null when the SKU has no temperature.
+ * A classified unspecified answer is printed as the shop default, 冰.
+ */
 export function lineName(name, temperature) {
-  const mark = TEMPERATURE_MARK[temperature];
-  return mark ? `${name} · ${mark}` : name;
+  if (temperature == null) return name;
+  const mark = TEMPERATURE_MARK[applyTemperature(temperature)];
+  return `${name} · ${mark}`;
 }
 
 /**
@@ -162,6 +177,7 @@ export async function runCart(config, request, onEvent = () => {}, options = {})
     const batch = remaining.slice();
     for (const item of batch) {
       const temperature = item.temperature ? stated ?? 'unspecified' : null;
+      const applied = item.temperature ? applyTemperature(temperature) : null;
       await emit({
         type: 'quantity',
         round,
@@ -178,7 +194,8 @@ export async function runCart(config, request, onEvent = () => {}, options = {})
           round,
           item: item.name,
           raw: stated ? classified.raw : 'unspecified',
-          temperature: stated ?? 'unspecified',
+          temperature,
+          applied,
           confidence: temperatureConfidence,
           cart: [...cart],
         });
@@ -192,6 +209,7 @@ export async function runCart(config, request, onEvent = () => {}, options = {})
         item: label,
         base: item.name,
         temperature,
+        applied,
         count: 1,
         cart: [...cart],
       });
@@ -387,16 +405,19 @@ export async function runCart(config, request, onEvent = () => {}, options = {})
     }
 
     let temperature = null;
+    let applied = null;
     if (matched.temperature) {
       const temperatureAnswer = readAnswer(fieldResponse, 'temperature');
       const classified = classifyTemperature(temperatureAnswer?.choice);
       temperature = classified.temperature;
+      applied = applyTemperature(temperature);
       await emit({
         type: 'temperature',
         round,
         item: matched.name,
         raw: classified.raw,
         temperature,
+        applied,
         confidence: formatConfidence(temperatureAnswer),
         cart: [...cart],
       });
@@ -411,6 +432,7 @@ export async function runCart(config, request, onEvent = () => {}, options = {})
       item: label,
       base: matched.name,
       temperature,
+      applied,
       count: quantity.count,
       cart: [...cart],
     });

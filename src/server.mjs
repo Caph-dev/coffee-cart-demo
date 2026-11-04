@@ -7,7 +7,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { MENU, menuNames } from './menu.mjs';
+import { DEFAULT_TEMPERATURE, MENU, menuNames } from './menu.mjs';
 import { readConfig, PROJECT_ROOT } from './jev.mjs';
 import { runCart } from './cart.mjs';
 
@@ -180,7 +180,12 @@ async function handleOrder(req, res) {
 
 function handleMenu(_req, res) {
   sendJson(res, 200, {
-    items: MENU.map(({ id, name, desc }) => ({ id, name, desc })),
+    items: MENU.map(({ id, name, desc, temperature }) => ({
+      id,
+      name,
+      desc,
+      ...(temperature ? { temperature: true, defaultTemperature: DEFAULT_TEMPERATURE } : {}),
+    })),
   });
 }
 
