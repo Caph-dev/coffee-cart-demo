@@ -3,11 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>点单 · Jev 多意图</title>
-    <meta
-      name="description"
-      content="左侧是咖啡菜单，右侧选一句或自己写。点单后，决策过程与小票分场。"
-    />
+    <title>点单</title>
+    <meta name="description" content="在售：咖啡、热巧克力、麦芬、司康。点选后分成决策过程与小票。" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -18,35 +15,55 @@
   </head>
   <body>
     <main class="stage">
-      <section class="dialog" id="dialog" aria-labelledby="dialog-title">
+      <section class="dialog" id="dialog" aria-label="点单">
         <div class="dialog__columns">
-          <section class="menu" aria-labelledby="menu-title">
-            <p class="dialog__eyebrow">菜单</p>
-            <h2 class="menu__title" id="menu-title">咖啡</h2>
-            <ul class="menu__list">
-              <li class="menu__item">
-                <p class="menu__name">美式</p>
-                <p class="menu__desc">浓缩加热水，可选热或冰</p>
-              </li>
-              <li class="menu__item">
-                <p class="menu__name">拿铁</p>
-                <p class="menu__desc">浓缩加牛奶，可选热或冰</p>
-              </li>
-              <li class="menu__item">
-                <p class="menu__name">燕麦拿铁</p>
-                <p class="menu__desc">浓缩加燕麦奶，可选热或冰</p>
-              </li>
-              <li class="menu__item">
-                <p class="menu__name">卡布奇诺</p>
-                <p class="menu__desc">浓缩、牛奶与奶泡，可选热或冰</p>
-              </li>
-            </ul>
+          <section class="menu" aria-label="菜单">
+            <section class="menu__group" aria-labelledby="menu-coffee">
+              <h2 class="menu__group-title" id="menu-coffee">咖啡</h2>
+              <ul class="menu__list">
+                <li class="menu__item">
+                  <p class="menu__name">美式</p>
+                  <p class="menu__desc">浓缩加热水，可选热或冰</p>
+                </li>
+                <li class="menu__item">
+                  <p class="menu__name">拿铁</p>
+                  <p class="menu__desc">浓缩加牛奶，可选热或冰</p>
+                </li>
+                <li class="menu__item">
+                  <p class="menu__name">燕麦拿铁</p>
+                  <p class="menu__desc">浓缩加燕麦奶，可选热或冰</p>
+                </li>
+                <li class="menu__item">
+                  <p class="menu__name">卡布奇诺</p>
+                  <p class="menu__desc">浓缩、牛奶与奶泡，可选热或冰</p>
+                </li>
+              </ul>
+            </section>
+            <section class="menu__group" aria-labelledby="menu-other">
+              <h2 class="menu__group-title" id="menu-other">其他饮品</h2>
+              <ul class="menu__list">
+                <li class="menu__item">
+                  <p class="menu__name">热巧克力</p>
+                  <p class="menu__desc">热可可，不含咖啡</p>
+                </li>
+              </ul>
+            </section>
+            <section class="menu__group" aria-labelledby="menu-bakery">
+              <h2 class="menu__group-title" id="menu-bakery">点心</h2>
+              <ul class="menu__list">
+                <li class="menu__item">
+                  <p class="menu__name">麦芬</p>
+                  <p class="menu__desc">蛋糕，烘焙点心</p>
+                </li>
+                <li class="menu__item">
+                  <p class="menu__name">司康</p>
+                  <p class="menu__desc">烘焙点心</p>
+                </li>
+              </ul>
+            </section>
           </section>
 
           <div class="order">
-            <p class="dialog__eyebrow">Jev · 多意图</p>
-            <h1 class="dialog__title" id="dialog-title">今天喝点什么？</h1>
-            <p class="dialog__lede">选一句，或自己写。决策过程与小票分场，<br />小票只留下确认过的。</p>
             <div class="dialog__choices" role="group" aria-label="点单选项">
               <button type="button" class="choice" data-request="来两杯燕麦拿铁，再来个麦芬">
                 <span>两杯燕麦拿铁，再来个麦芬</span>
@@ -65,7 +82,6 @@
               </button>
             </div>
             <form class="compose" id="compose">
-              <label class="compose__label" for="custom-order">自己写一句</label>
               <div class="compose__row">
                 <input
                   class="compose__input"
@@ -74,12 +90,11 @@
                   type="text"
                   maxlength="500"
                   autocomplete="off"
-                  placeholder="例如：一杯冰美式"
+                  aria-label="点单内容"
                 />
                 <button class="compose__submit" type="submit">点单</button>
               </div>
             </form>
-            <p class="dialog__note">菜单上没有抹茶，也没有中餐。点了菜单里没有的，会写明不在菜单，菜单无法满足。</p>
           </div>
         </div>
       </section>
@@ -91,10 +106,7 @@
         </header>
         <div class="result__columns">
           <section class="process" aria-labelledby="process-title">
-            <div class="process__head">
-              <h2 class="process__title" id="process-title">决策过程</h2>
-              <p class="process__hint">选择 · 数量 · 温度 · 核对 · 收票</p>
-            </div>
+            <h2 class="process__title" id="process-title">决策过程</h2>
             <ol class="process__log" id="process-log" aria-live="polite"></ol>
           </section>
           <article class="receipt" aria-labelledby="receipt-title">
@@ -103,7 +115,7 @@
             </header>
             <div class="receipt__body">
               <ul class="receipt__lines" id="receipt-lines" aria-live="polite"></ul>
-              <p class="receipt__placeholder" id="receipt-placeholder">等待确认…</p>
+              <p class="receipt__placeholder" id="receipt-placeholder" hidden></p>
             </div>
             <footer class="receipt__total" id="receipt-total" hidden>
               <span>合计</span>
