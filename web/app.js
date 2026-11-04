@@ -203,17 +203,37 @@ async function runOrder(request, gen, signal) {
         addStep({ mark: '选择', text: label, meta: conf, kind: 'choice' });
         break;
       }
+      case 'quantity':
+        addStep({
+          mark: '数量',
+          text: event.item || '（未知）',
+          meta: event.quantity || event.raw || '（空）',
+          kind: 'choice',
+        });
+        break;
+      case 'invalid':
+        addStep({
+          mark: '拒绝',
+          text: event.item ? `${event.item} 数量非法` : '数量非法',
+          meta: '无法满足',
+          kind: 'error',
+        });
+        break;
       case 'added': {
         const item = event.item || '（未知）';
-        pendingNames.push(item);
+        const count = Number.isInteger(event.count) && event.count > 0 ? event.count : 1;
+        for (let i = 0; i < count; i += 1) pendingNames.push(item);
         renderReceipt();
-        addStep({ mark: '加入', text: item, kind: 'added' });
+        addStep({ mark: '加入', text: item, meta: `× ${count}`, kind: 'added' });
         break;
       }
       case 'check': {
         const item = event.item || '（未知）';
-        takePending(item);
-        if (event.kept) confirmed.push(item);
+        const count = Number.isInteger(event.count) && event.count > 0 ? event.count : 1;
+        for (let i = 0; i < count; i += 1) {
+          takePending(item);
+          if (event.kept) confirmed.push(item);
+        }
         renderReceipt();
         addStep({
           mark: event.kept ? '保留' : '移除',
@@ -248,6 +268,9 @@ async function runOrder(request, gen, signal) {
         totalCount = typeof event.total === 'number' ? event.total : names.length;
         receiptMode = names.length ? 'items' : 'empty';
         renderReceipt();
+        if (event.stoppedByLimit) {
+          addStep({ mark: '停止', text: '达到请求上限', kind: 'status' });
+        }
         break;
       }
       case 'error':
