@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { EVERYTHING_CHOICES } from './menu.mjs';
 
 export const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -80,10 +81,22 @@ export function buildChoiceQuestion(menu, foundNames = []) {
   const criteria = {};
   for (const item of menu) criteria[item.id] = itemCriteria(item);
   const already = foundNames.length ? foundNames.join('、') : '还没有';
+  const everything = EVERYTHING_CHOICES.join('、');
+  criteria.all = {
+    means: '用户要还没计入的菜单里每一件各来一份，而不是点名其中某一件。',
+    use_when:
+      `这些说法都选 all：${everything}。` +
+      '同一句里还夹了菜单外的东西（再来份宫保鸡丁、再来杯抹茶）时，仍然选 all，不要改选其中一件。',
+    do_not:
+      '不要选 all：只点了几件（来一杯拿铁、两杯燕麦拿铁再来个麦芬）、只要菜单外的（抹茶、抹茶拿铁、香草拿铁、宫保鸡丁），' +
+      '或每样要的不是一份（所有的都来两份、每样三杯）。那些按本名选一件，或选 done。',
+  };
   criteria.done = {
-    means: '除了已经计入的商品，没有其它按本名点到的菜单项。',
+    means: '除了已经计入的商品，没有其它按本名点到的菜单项，也不是要剩下的每一件各来一份。',
     use_when: '用户已经点完，或剩下的是菜单外、中餐，或只是相近名称。',
-    do_not: '不要用最像的菜单项顶替。抹茶拿铁、绿色抹茶拿铁、香草拿铁都不是拿铁。宫保鸡丁不在菜单里。',
+    do_not:
+      '不要用最像的菜单项顶替。抹茶拿铁、绿色抹茶拿铁、香草拿铁都不是拿铁。宫保鸡丁不在菜单里。' +
+      '用户要每样各来一份时不要选 done，选 all。',
   };
 
   return {
@@ -93,8 +106,73 @@ export function buildChoiceQuestion(menu, foundNames = []) {
       '在剩下的菜单项里，用户还用本名点到了哪一件？提到多件时，选最先用本名点到的那一件。' +
       '每一件最多出现一次；这一问不要按数量或冷热拆开。' +
       '名字只是相近、或另一种饮品里夹了菜单上的字（抹茶拿铁不是拿铁，香草拿铁不是拿铁，燕麦拿铁不是拿铁），不要选最像的那件；还有别的本名就选那件，否则选 done。' +
+      `如果用户要剩下的每一件各来一份（${everything}），选 all，不要收成其中一件，也不要当成菜单外的 done。` +
       '只按用户原始请求选择，不要加入用户没有点的商品。',
     criteria,
+  };
+}
+
+/**
+ * 与找商品同一请求的 noul：是不是要剩下的菜单每件各一份。
+ * Choice 一次只能落在一个选项上；这一问为是时，调用方把剩下的在售各写一份，
+ * 不再要求每一件都被本名点到。
+ */
+export function buildOneOfEachQuestion(menu) {
+  const names = menu.map((item) => item.name).join('、') || '没有';
+  const everything = EVERYTHING_CHOICES.join('、');
+  return {
+    type: 'noul',
+    instructions: {
+      question: '用户是不是要把还没计入的菜单每一件都各来一份？',
+      remaining: names,
+      rule:
+        '只有明确要全部、所有、每样、菜单上剩下的都来一份，或 one of each / everything / all of them，才答 yes。' +
+        '点名了其中几件、只要菜单外的、或每样不是一份，都答 no。不要因为没出现每一件的本名就答 no。',
+    },
+    criteria: {
+      true: {
+        means: '用户要剩下的菜单每一件都来一份。没有逐个说出本名也算。',
+        examples: [
+          ...EVERYTHING_CHOICES,
+          '所有的都来一份，再来份宫保鸡丁',
+          'one of each, and a side of kung pao',
+        ],
+      },
+      false: {
+        means: '用户没有要整份剩下的菜单各来一份。',
+        examples: [
+          '来一杯拿铁',
+          '两杯燕麦拿铁，再来个麦芬',
+          '冰美式',
+          '那个绿色抹茶拿铁',
+          '抹茶',
+          '来一份宫保鸡丁',
+          '来一份宫保鸡丁，再来碗炒饭',
+          '所有的都来两份',
+          '每样三杯',
+        ],
+        not: `这些才是 yes：${everything}。抹茶、宫保鸡丁单独出现不是全部。所有的都来两份不是各一份。`,
+      },
+    },
+  };
+}
+
+/**
+ * Choice：整单「每样一份」时，咖啡整体的冷热。
+ * 不是这种点单、或没说冷热，都是 unspecified。热巧克力不在这里改成冰。
+ */
+export function buildOrderTemperatureQuestion() {
+  return {
+    type: 'choice',
+    instructions:
+      '只在用户要把剩下的菜单每样各来一份时，判断这些咖啡是热的还是冰的。' +
+      '没说冷热、只点了几件、或这一单不是每样一份，都选 unspecified。不要替客人猜。' +
+      '热巧克力不能改成冰的，这一问不要为它发明温度。',
+    criteria: {
+      hot: '整单咖啡都要热的。例如：所有的都来一份，咖啡都要热；everything, all hot。',
+      iced: '整单咖啡都要冰的。例如：全部来一份，都要冰；one of each, iced。',
+      unspecified: '没对整单咖啡说冷热，或这不是每样各来一份。选这个，不要发明热或冰。',
+    },
   };
 }
 
@@ -109,7 +187,9 @@ export function buildOnMenuQuestion(menu) {
     instructions: {
       question: '在还没计入的菜单项里，用户有没有至少一件是按本名点到的？',
       remaining: names,
-      rule: '只沾了名字的一部分不算点到。不要把菜单外的饮品算成最像的那一件。',
+      rule:
+        '只沾了名字的一部分不算点到。不要把菜单外的饮品算成最像的那一件。' +
+        '「所有的都来一份」「全部来一份」「one of each」没有按本名点到某一件，这一问答 no；由 all 和 one_of_each 处理。',
     },
     criteria: {
       true: {
@@ -145,7 +225,7 @@ export function buildQuantityQuestion(item) {
       '只有恰好 1、2 或 3 才选 one、two、three。零、负数、小数、四份及以上都选 invalid。',
     criteria: {
       one:
-        '这一项是 1 份。覆盖阿拉伯数字 1；中文一、一杯、一份、一个；英文 one。没写数量也算一份。',
+        '这一项是 1 份。覆盖阿拉伯数字 1；中文一、一杯、一份、一个；英文 one。没写数量也算一份。每样一份、都来一份，这一项也是 one，不是 invalid。',
       two:
         '这一项是 2 份。覆盖阿拉伯数字 2；中文二、两、两杯、两份、两个；英文 two。',
       three:

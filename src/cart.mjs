@@ -1,14 +1,22 @@
 /**
  * Shopping-cart choice loop. Emits structured events for CLI or web SSE.
  *
- * 1. Find each menu item at most once. The Choice only offers items not yet
- *    found, plus done. A companion noul asks whether any remaining item was
- *    named exactly. A near-miss (抹茶拿铁 for 拿铁) is not a menu hit.
- * 2. For a confirmed item, one request asks exact-item, quantity
+ * 1. Find each menu item at most once. The Choice offers items not yet found,
+ *    plus all (one of every remaining item) and done. A companion noul asks
+ *    whether any remaining item was named exactly. A near-miss (抹茶拿铁 for
+ *    拿铁) is not a menu hit. This file does not parse the order.
+ * 2. all, or a confirmed one_of_each noul, writes one of every remaining
+ *    sellable item. Those requests do not name each SKU, so the per-item
+ *    exact and last_added checks would reject them and are skipped. Quantity
+ *    is one. Temperature stays unspecified unless that same response's
+ *    order_temperature choice is hot or iced, and the mark is applied only
+ *    to coffees that have a temperature. Hot chocolate is left as-is.
+ *    An off-menu extra in the same sentence is not added.
+ * 3. For a named item, one request asks exact-item, quantity
  *    (one / two / three / invalid), and temperature (hot / iced / unspecified)
  *    when that drink has a temperature. exact failure does not touch the cart.
- *    invalid quantity does not touch the cart. This file does not parse the order.
- * 3. A legal line is written, then the last_added noul check still runs.
+ *    invalid quantity does not touch the cart.
+ * 4. A legal named line is written, then the last_added noul check still runs.
  */
 import { MENU, menuNames, findMenuChoice } from './menu.mjs';
 import {
@@ -16,6 +24,8 @@ import {
   buildPayload,
   buildChoiceQuestion,
   buildOnMenuQuestion,
+  buildOneOfEachQuestion,
+  buildOrderTemperatureQuestion,
   buildQuantityQuestion,
   buildTemperatureQuestion,
   buildExactQuestion,
@@ -134,6 +144,61 @@ export async function runCart(config, request, onEvent = () => {}, options = {})
     return ask(config, buildPayload(config, state, questions));
   }
 
+  async function expandRemaining(temperatureAnswer, confidence) {
+    const classified = classifyTemperature(temperatureAnswer?.choice);
+    const stated =
+      classified.temperature === 'hot' || classified.temperature === 'iced'
+        ? classified.temperature
+        : null;
+    const temperatureConfidence = formatConfidence(temperatureAnswer);
+    await emit({
+      type: 'choice',
+      round,
+      raw: 'all',
+      matched: { id: 'all', name: '每样一份' },
+      confidence,
+      cart: [...cart],
+    });
+    const batch = remaining.slice();
+    for (const item of batch) {
+      const temperature = item.temperature ? stated ?? 'unspecified' : null;
+      await emit({
+        type: 'quantity',
+        round,
+        item: item.name,
+        raw: 'one',
+        quantity: 'one',
+        count: 1,
+        confidence: null,
+        cart: [...cart],
+      });
+      if (item.temperature) {
+        await emit({
+          type: 'temperature',
+          round,
+          item: item.name,
+          raw: stated ? classified.raw : 'unspecified',
+          temperature: stated ?? 'unspecified',
+          confidence: temperatureConfidence,
+          cart: [...cart],
+        });
+      }
+      const label = lineName(item.name, temperature);
+      found.push(item);
+      cart.push(label);
+      await emit({
+        type: 'added',
+        round,
+        item: label,
+        base: item.name,
+        temperature,
+        count: 1,
+        cart: [...cart],
+      });
+    }
+    remaining = [];
+  }
+
   async function finishOffMenu() {
     sawOffMenu = true;
     const done = resolution('done');
@@ -179,14 +244,24 @@ export async function runCart(config, request, onEvent = () => {}, options = {})
       {
         next_item: buildChoiceQuestion(remaining, foundNames),
         on_menu: buildOnMenuQuestion(remaining),
+        one_of_each: buildOneOfEachQuestion(remaining),
+        order_temperature: buildOrderTemperatureQuestion(),
       },
       true,
     );
     const choiceAnswer = readAnswer(choiceResponse, 'next_item');
     const onMenuAnswer = readAnswer(choiceResponse, 'on_menu');
+    const oneOfEachAnswer = readAnswer(choiceResponse, 'one_of_each');
     const rawChoice = typeof choiceAnswer?.choice === 'string' ? choiceAnswer.choice : '';
     const matched = findMenuChoice(rawChoice);
     const confidence = formatConfidence(choiceAnswer);
+    const wantsEverything = confirmed(oneOfEachAnswer) || matched?.id === 'all';
+    if (wantsEverything) {
+      unrecognizedStreak = 0;
+      const everythingConfidence = formatConfidence(oneOfEachAnswer) ?? confidence;
+      await expandRemaining(readAnswer(choiceResponse, 'order_temperature'), everythingConfidence);
+      continue;
+    }
     const stillOffered =
       matched && matched.id !== 'done' && remaining.some((item) => item.id === matched.id);
     const menuConfirmed = confirmed(onMenuAnswer);

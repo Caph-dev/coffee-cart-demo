@@ -60,6 +60,26 @@ export function menuNames() {
   return MENU.map((item) => item.name);
 }
 
+/**
+ * Choice 可以回这些词，表示剩下的在售每一件各来一份。
+ * 只做整段相等，不扫用户原文。宫保鸡丁、抹茶不在这里。
+ */
+export const EVERYTHING_CHOICES = [
+  'all',
+  'everything',
+  'one of each',
+  'one of everything',
+  'all of them',
+  'everything on the menu',
+  '所有的都来一份',
+  '全部来一份',
+  '每样一份',
+  '每样来一份',
+  '每样都来一份',
+  '一样来一个',
+  '菜单上每样都来一份',
+];
+
 function normalize(value) {
   return String(value).trim().toLowerCase().replace(/[\s_-]+/g, '');
 }
@@ -75,6 +95,9 @@ export function findMenuChoice(value) {
   if (typeof value !== 'string' || value.trim() === '') return null;
   const whole = normalize(value);
   if (whole === 'done' || whole === 'nothingelse') return { id: 'done', name: 'done' };
+  if (EVERYTHING_CHOICES.some((token) => normalize(token) === whole)) {
+    return { id: 'all', name: 'all' };
+  }
 
   const keys = (item) => [item.id, item.name, ...item.aliases].map(normalize);
   const exact = MENU.find((item) => keys(item).includes(whole));

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MENU, findMenuChoice } from './menu.mjs';
+import { MENU, findMenuChoice, EVERYTHING_CHOICES } from './menu.mjs';
 import {
   buildChoiceQuestion,
   buildQuantityQuestion,
@@ -8,6 +8,8 @@ import {
   buildExactQuestion,
   buildCheckQuestion,
   buildOnMenuQuestion,
+  buildOneOfEachQuestion,
+  buildOrderTemperatureQuestion,
 } from './jev.mjs';
 import { classifyQuantity, classifyTemperature, runCart, OFF_MENU_MESSAGE, INVALID_QTY_MESSAGE } from './cart.mjs';
 
@@ -282,7 +284,9 @@ test('every menu item is found at most once when the menu runs out', async () =>
   assert.equal(calls.length, MENU.length * 3);
   const offered = calls
     .filter((payload) => payload.questions.next_item)
-    .map((payload) => Object.keys(payload.questions.next_item.criteria).filter((key) => key !== 'done'));
+    .map((payload) =>
+      Object.keys(payload.questions.next_item.criteria).filter((key) => key !== 'done' && key !== 'all'),
+    );
   assert.deepEqual(offered.map((keys) => keys.length), ids.map((_, index) => ids.length - index));
 });
 
@@ -493,4 +497,162 @@ test('an invalid quantity still reports 数量非法 and does not become an off-
   assert.deepEqual(summary.cart, []);
   assert.equal(summary.outcome, 'invalid_quantity');
   assert.equal(summary.message, INVALID_QTY_MESSAGE);
+});
+
+const ONE_EACH = MENU.map((item) => item.name);
+
+function everythingAnswer({ choice: picked = 'done', noul = 0.92, onMenu = 0.12, temperature = 'unspecified' } = {}) {
+  return {
+    answers: {
+      next_item: { choice: picked, confidence: 0.9 },
+      on_menu: { noul: onMenu },
+      one_of_each: { noul },
+      order_temperature: { choice: temperature, confidence: 0.9 },
+    },
+  };
+}
+
+test('everything phrases are choice tokens and are taught to Jev', () => {
+  for (const phrase of ['all', 'ALL', 'one of each', 'all of them', 'everything', '所有的都来一份', '全部来一份', '每样都来一份']) {
+    assert.equal(findMenuChoice(phrase).id, 'all', phrase);
+  }
+  assert.equal(findMenuChoice('抹茶拿铁'), null);
+  assert.equal(findMenuChoice('宫保鸡丁'), null);
+  assert.equal(findMenuChoice('拿铁').id, 'latte');
+
+  const choiceQuestion = buildChoiceQuestion(MENU, []);
+  assert.ok(choiceQuestion.criteria.all);
+  assert.ok(choiceQuestion.criteria.done);
+  const taught = JSON.stringify(choiceQuestion) + JSON.stringify(buildOneOfEachQuestion(MENU));
+  for (const phrase of EVERYTHING_CHOICES) assert.ok(taught.includes(phrase), phrase);
+  assert.match(taught, /宫保鸡丁/);
+  assert.match(taught, /所有的都来两份/);
+  assert.deepEqual(Object.keys(buildOrderTemperatureQuestion().criteria), ['hot', 'iced', 'unspecified']);
+});
+
+test('所有的都来一份 yields one of every menu item', async () => {
+  const { callJev, calls } = script([
+    (payload) => {
+      assert.equal(payload.questions.one_of_each.type, 'noul');
+      assert.equal(payload.questions.order_temperature.type, 'choice');
+      assert.match(payload.questions.next_item.instructions, /所有的都来一份/);
+      assert.match(JSON.stringify(payload.questions.one_of_each), /one of each/);
+      return everythingAnswer({ choice: '所有的都来一份', noul: 0.2, onMenu: 0.08 });
+    },
+  ]);
+  const events = [];
+  const summary = await runCart({}, '所有的都来一份', (event) => events.push(event), { callJev });
+
+  assert.deepEqual(summary.cart, ONE_EACH);
+  assert.deepEqual(summary.items, ONE_EACH.map((name) => ({ name, count: 1 })));
+  assert.equal(summary.total, MENU.length);
+  assert.equal(summary.outcome, 'items');
+  assert.equal(summary.message, '');
+  assert.equal(summary.stoppedByLimit, false);
+  assert.equal(calls.length, 1);
+  assert.equal(calls.some((payload) => payload.questions.quantity), false);
+  assert.equal(events.some((event) => event.type === 'invalid'), false);
+  assert.equal(events.some((event) => event.type === 'unmet'), false);
+  assert.equal(events.filter((event) => event.type === 'added').length, MENU.length);
+  assert.ok(events.filter((event) => event.type === 'quantity').every((event) => event.quantity === 'one' && event.count === 1));
+  assert.equal(summary.cart.some((name) => name.includes('·')), false);
+  const temperatures = events.filter((event) => event.type === 'temperature');
+  assert.equal(temperatures.length, MENU.filter((item) => item.temperature).length);
+  assert.ok(temperatures.every((event) => event.temperature === 'unspecified'));
+});
+
+test('one of each and 全部来一份 use the same whole-menu path', async () => {
+  for (const phrase of ['one of each', '全部来一份', 'all of them']) {
+    const { callJev } = script([() => everythingAnswer({ choice: phrase, noul: 0.1 })]);
+    const summary = await runCart({}, phrase, () => {}, { callJev });
+    assert.deepEqual(summary.cart, ONE_EACH, phrase);
+    assert.equal(summary.outcome, 'items', phrase);
+  }
+});
+
+test('a one_of_each noul expands the menu when the item choice is done', async () => {
+  const { callJev, calls } = script([
+    () => everythingAnswer({ choice: 'done', noul: 0.93, onMenu: 0.11, temperature: 'unspecified' }),
+  ]);
+  const events = [];
+  const summary = await runCart({}, '菜单上每样都来一份', (event) => events.push(event), { callJev });
+  assert.deepEqual(summary.cart, ONE_EACH);
+  assert.equal(events.find((event) => event.type === 'choice').matched.id, 'all');
+  assert.equal(calls.length, 1);
+  assert.equal(events.some((event) => event.type === 'check'), false);
+});
+
+test('iced everything marks coffees and leaves hot chocolate and pastry unmarked', async () => {
+  const { callJev } = script([
+    () => everythingAnswer({ choice: 'all', noul: 0.88, temperature: 'iced' }),
+  ]);
+  const summary = await runCart({}, '所有的都来一份，都要冰的', () => {}, { callJev });
+  assert.deepEqual(summary.cart, [
+    '美式 · 冰',
+    '拿铁 · 冰',
+    '燕麦拿铁 · 冰',
+    '卡布奇诺 · 冰',
+    '热巧克力',
+    '麦芬',
+    '司康',
+  ]);
+});
+
+test('all plus an off-menu item still fills the on-menu set only', async () => {
+  const { callJev } = script([
+    () => everythingAnswer({ choice: 'all', noul: 0.9, onMenu: 0.15 }),
+  ]);
+  const summary = await runCart({}, '所有的都来一份，再来份宫保鸡丁', () => {}, { callJev });
+  assert.deepEqual(summary.cart, ONE_EACH);
+  assert.equal(summary.outcome, 'items');
+  assert.equal(JSON.stringify(summary.cart).includes('宫保鸡丁'), false);
+  assert.equal(JSON.stringify(summary.cart).includes('抹茶'), false);
+});
+
+test('抹茶 and 宫保鸡丁 alone stay off the menu when one_of_each is not confirmed', async () => {
+  for (const phrase of ['抹茶', '来一份宫保鸡丁，再来碗炒饭']) {
+    const { callJev, calls } = script([
+      () => everythingAnswer({ choice: 'done', noul: 0.08, onMenu: 0.1 }),
+    ]);
+    const summary = await runCart({}, phrase, () => {}, { callJev });
+    assert.deepEqual(summary.cart, [], phrase);
+    assert.equal(summary.outcome, 'off_menu', phrase);
+    assert.equal(summary.message, OFF_MENU_MESSAGE, phrase);
+    assert.equal(calls.length, 1, phrase);
+  }
+});
+
+test('one_of_each below the threshold does not expand and does not scan the sentence', async () => {
+  const { callJev } = script([
+    () => everythingAnswer({ choice: 'done', noul: 0.44, onMenu: 0.2 }),
+  ]);
+  const summary = await runCart({}, '所有的都来一份', () => {}, { callJev });
+  assert.deepEqual(summary.cart, []);
+  assert.equal(summary.outcome, 'off_menu');
+});
+
+test('one of each after a named item adds only what is still remaining', async () => {
+  const { callJev } = script([
+    () => choice('latte'),
+    () => quantity('one', 1, { temperature: 'unspecified' }),
+    () => check(0.95),
+    (payload) => {
+      assert.equal(payload.questions.next_item.criteria.latte, undefined);
+      assert.ok(payload.questions.next_item.criteria.all);
+      const remainingNames = payload.questions.one_of_each.instructions.remaining.split('、');
+      assert.equal(remainingNames.includes('拿铁'), false);
+      assert.ok(remainingNames.includes('燕麦拿铁'));
+      return everythingAnswer({ choice: 'all', noul: 0.2 });
+    },
+  ]);
+  const summary = await runCart({}, '先来一杯拿铁，其余每样一份', () => {}, { callJev });
+  assert.deepEqual(summary.items, [
+    { name: '拿铁', count: 1 },
+    { name: '美式', count: 1 },
+    { name: '燕麦拿铁', count: 1 },
+    { name: '卡布奇诺', count: 1 },
+    { name: '热巧克力', count: 1 },
+    { name: '麦芬', count: 1 },
+    { name: '司康', count: 1 },
+  ]);
 });
