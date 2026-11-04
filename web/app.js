@@ -1,36 +1,18 @@
 const ticket = document.getElementById('ticket');
 const form = document.getElementById('order-form');
-const input = document.getElementById('request');
 const lines = document.getElementById('ticket-lines');
 const resetBtn = document.getElementById('ticket-reset');
-const submitBtn = form.querySelector('.ticket__submit');
-const dateEl = document.getElementById('ticket-date');
+const presetBtns = [...document.querySelectorAll('.ticket__preset')];
 
-dateEl.textContent = new Intl.DateTimeFormat('zh-CN', {
-  month: 'short',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  timeZone: 'Asia/Singapore',
-}).format(new Date());
-
-const EXAMPLES = [
-  '来两杯燕麦拿铁，再来个麦芬',
-  '美式热的，再来热巧克力',
-  '那个绿色抹茶拿铁',
-];
-
-if (!input.value) {
-  input.placeholder = EXAMPLES[Math.floor(Math.random() * EXAMPLES.length)];
+function setPresetsDisabled(disabled) {
+  for (const btn of presetBtns) btn.disabled = disabled;
 }
 
 function clearTicket() {
   lines.innerHTML = '';
   ticket.classList.remove('is-filling', 'is-done', 'is-error');
   form.hidden = false;
-  submitBtn.disabled = false;
-  submitBtn.textContent = '开票';
-  input.focus();
+  setPresetsDisabled(false);
 }
 
 function addLine({ left, right = '', kind = '' }, delayIndex = 0) {
@@ -58,9 +40,10 @@ function summarize(cart) {
 async function runOrder(request) {
   ticket.classList.add('is-filling');
   ticket.classList.remove('is-done', 'is-error');
+  form.hidden = true;
   lines.innerHTML = '';
   addLine({ left: request, kind: 'status' }, 0);
-  addLine({ left: '正在开票…', kind: 'status' }, 1);
+  addLine({ left: '正在点单…', kind: 'status' }, 1);
 
   const response = await fetch('/api/order', {
     method: 'POST',
@@ -190,26 +173,33 @@ async function runOrder(request) {
   }
 }
 
-form.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const request = input.value.trim();
-  if (!request) return;
-  submitBtn.disabled = true;
-  submitBtn.textContent = '开票中';
+async function startOrder(request) {
+  const text = (request || '').trim();
+  if (!text) return;
+  setPresetsDisabled(true);
   try {
-    await runOrder(request);
+    await runOrder(text);
   } catch (error) {
     ticket.classList.add('is-filling', 'is-error');
-    addLine({ left: error.message || '出错了', kind: 'status' }, 0);
+    form.hidden = true;
+    if (!lines.children.length) {
+      addLine({ left: error.message || '出错了', kind: 'status' }, 0);
+    } else {
+      addLine({ left: error.message || '出错了', kind: 'status' }, 99);
+    }
   } finally {
-    submitBtn.disabled = false;
-    submitBtn.textContent = '开票';
+    setPresetsDisabled(false);
   }
-});
+}
+
+for (const btn of presetBtns) {
+  btn.addEventListener('click', () => {
+    startOrder(btn.dataset.request || btn.textContent);
+  });
+}
 
 resetBtn.addEventListener('click', clearTicket);
 
-/* Slow crossfade on hero atmosphere */
 const frames = document.querySelectorAll('[data-crossfade] img');
 if (frames.length > 1) {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -223,7 +213,6 @@ if (frames.length > 1) {
   }
 }
 
-/* Pause decorative video when tab hidden or reduced motion */
 const video = document.querySelector('.showcase__media video');
 if (video) {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -237,8 +226,6 @@ if (video) {
   });
 }
 
-
-/* Section entrances */
 const revealEls = document.querySelectorAll('.reveal');
 if (revealEls.length && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
   const io = new IntersectionObserver(
@@ -257,7 +244,6 @@ if (revealEls.length && !window.matchMedia('(prefers-reduced-motion: reduce)').m
   revealEls.forEach((el) => el.classList.add('is-in'));
 }
 
-/* Hero sides visible immediately */
 document.querySelectorAll('.hero .reveal').forEach((el) => {
   requestAnimationFrame(() => el.classList.add('is-in'));
 });

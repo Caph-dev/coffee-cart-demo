@@ -202,21 +202,6 @@ textarea {
   text-transform: uppercase;
 }
 
-.ticket__meta {
-  font-size: var(--step-small);
-  color: var(--paper-soft);
-  text-align: right;
-  white-space: nowrap;
-}
-
-.ticket__sub {
-  margin: 0 0 0.55rem;
-  font-size: var(--step-lead);
-  color: var(--paper-ink);
-  font-weight: 500;
-  line-height: 1.35;
-}
-
 .ticket__rule {
   height: 0;
   border: 0;
@@ -225,65 +210,51 @@ textarea {
 }
 
 .ticket__form {
-  display: grid;
-  grid-template-rows: 1fr auto;
+  display: flex;
+  flex-direction: column;
   gap: 0.85rem;
   flex: 1;
   min-height: 0;
 }
 
-.ticket__input {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  color: var(--paper-ink);
-  font-size: var(--step-body);
-  line-height: 1.45;
-  resize: none;
-  padding: 0;
-  outline: none;
-  min-height: 4.5rem;
-}
-
-.ticket__input::placeholder {
-  color: color-mix(in srgb, var(--paper-soft) 80%, transparent);
-}
-
-.ticket__actions {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.65rem;
-  align-items: center;
-}
-
-.ticket__hint {
+.ticket__pick-label {
   margin: 0;
   font-size: var(--step-small);
   color: var(--paper-soft);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 500;
 }
 
-.ticket__submit {
+.ticket__presets {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.ticket__preset {
   appearance: none;
   border: 0;
+  width: 100%;
+  text-align: left;
   background: var(--paper-ink);
   color: var(--paper);
   font-weight: 500;
   font-size: var(--step-body);
-  padding: 0.85rem 1.35rem;
+  padding: 0.85rem 1rem;
   cursor: pointer;
   transition: background 160ms ease, color 160ms ease, transform 160ms ease;
 }
 
-.ticket__submit:hover:not(:disabled) {
+.ticket__preset:hover:not(:disabled) {
   background: var(--accent);
   color: var(--accent-ink);
 }
 
-.ticket__submit:active:not(:disabled) {
+.ticket__preset:active:not(:disabled) {
   transform: translateY(1px);
 }
 
-.ticket__submit:disabled {
+.ticket__preset:disabled {
   opacity: 0.55;
   cursor: wait;
 }

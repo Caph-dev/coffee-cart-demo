@@ -33,30 +33,26 @@
       <article class="ticket reveal" id="ticket" aria-labelledby="ticket-title">
         <div class="ticket__header">
           <h1 class="ticket__title" id="ticket-title">Coffee Cart 点单小票</h1>
-          <div class="ticket__meta">
-            <div>内部 demo</div>
-            <div id="ticket-date"></div>
-          </div>
         </div>
-        <p class="ticket__sub">给同事演示的 Jev 购物车：口语点单逐件入车，菜单外商品会被 check 踢掉。</p>
         <hr class="ticket__rule" />
 
-        <form class="ticket__form" id="order-form">
-          <label class="sr-only" for="request">点单内容</label>
-          <textarea
-            id="request"
-            class="ticket__input"
-            name="request"
-            rows="3"
-            maxlength="500"
-            required
-            placeholder="例如：来两杯燕麦拿铁，再来个麦芬"
-          ></textarea>
-          <div class="ticket__actions">
-            <p class="ticket__hint">模型每轮只加一件，写完自己停。</p>
-            <button class="ticket__submit" type="submit">开票</button>
+        <div class="ticket__form" id="order-form">
+          <p class="ticket__pick-label" id="presets-label">选一句点单</p>
+          <div class="ticket__presets" role="group" aria-labelledby="presets-label">
+            <button type="button" class="ticket__preset" data-request="来两杯燕麦拿铁，再来个麦芬">
+              两杯燕麦拿铁 + 麦芬
+            </button>
+            <button type="button" class="ticket__preset" data-request="美式热的，再来热巧克力">
+              美式 + 热巧克力
+            </button>
+            <button type="button" class="ticket__preset" data-request="那个绿色抹茶拿铁">
+              抹茶拿铁（菜单外）
+            </button>
+            <button type="button" class="ticket__preset" data-request="来一杯拿铁">
+              一杯拿铁
+            </button>
           </div>
-        </form>
+        </div>
 
         <ul class="ticket__lines" id="ticket-lines" aria-live="polite"></ul>
         <button type="button" class="ticket__reset" id="ticket-reset">再开一张</button>
@@ -268,11 +264,11 @@
 
     <section class="cta" aria-labelledby="cta-title">
       <div class="cta__copy reveal">
-        <p>把你自己的那句点单交给小票。看着它一行行写出来，比看日志更适合演示。</p>
+        <p>点一下预设点单，看着小票一行行写出来，比看日志更适合演示。</p>
       </div>
       <div class="cta__card reveal">
-        <h2 id="cta-title">Try your line</h2>
-        <p>回到第一张票，写一句口语，按开票。</p>
+        <h2 id="cta-title">Try a line</h2>
+        <p>回到第一张票，选一句预设点单。</p>
         <a class="cta__button" href="#order">回到小票</a>
       </div>
     </section>
