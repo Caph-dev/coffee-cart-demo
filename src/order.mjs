@@ -14,6 +14,8 @@ import {
   buildPayload,
   buildChoiceQuestion,
   buildOnMenuQuestion,
+  buildOneOfEachQuestion,
+  buildOrderTemperatureQuestion,
   buildQuantityQuestion,
   buildTemperatureQuestion,
   buildExactQuestion,
@@ -46,6 +48,7 @@ function printHelp() {
 非法份数（0.7、-1、2^32 等）走 invalid，不写入购物车。
 冷热 / temperature：美式、拿铁、燕麦拿铁、卡布奇诺再问 hot、iced、unspecified。
 没说、常温或互相矛盾都是 unspecified，小票不编一个冷热。热巧克力只卖热的，不再单问。
+每样一份（所有的都来一份、全部来一份、one of each）由 Choice 的 all 或 one_of_each noul 展开成菜单每一件各一份。程序不解析原文。
 
 环境变量：
   JEV_BASE_URL   默认 https://ai.caph.me/v1
@@ -74,12 +77,14 @@ async function readRequestFromStdin() {
 function printDryRun(config, request) {
   const latte = MENU.find((item) => item.id === 'latte');
   const choiceState = { request, cart: [], found: [], last_added: null };
-  console.log('[dry-run] 不调用 API。首轮 choice payload（剩下的菜单 + done，外加 on_menu）：');
+  console.log('[dry-run] 不调用 API。首轮 choice payload（剩下的菜单 + all + done，外加 on_menu / one_of_each）：');
   console.log(
     JSON.stringify(
       buildPayload(config, choiceState, {
         next_item: buildChoiceQuestion(MENU, []),
         on_menu: buildOnMenuQuestion(MENU),
+        one_of_each: buildOneOfEachQuestion(MENU),
+        order_temperature: buildOrderTemperatureQuestion(),
       }),
       null,
       2,
