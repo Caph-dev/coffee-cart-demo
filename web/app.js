@@ -8,6 +8,9 @@ const placeholder = document.getElementById('receipt-placeholder');
 const totalEl = document.getElementById('receipt-total');
 const totalValue = document.getElementById('receipt-total-value');
 const choices = [...document.querySelectorAll('.choice')];
+const compose = document.getElementById('compose');
+const customInput = document.getElementById('custom-order');
+const composeSubmit = compose.querySelector('button[type="submit"]');
 
 let orderGen = 0;
 let abortCtrl = null;
@@ -18,6 +21,8 @@ let totalCount = 0;
 
 function setChoicesDisabled(disabled) {
   for (const btn of choices) btn.disabled = disabled;
+  customInput.disabled = disabled;
+  composeSubmit.disabled = disabled;
 }
 
 function groupCounts(names) {
@@ -327,5 +332,20 @@ async function startOrder(request) {
 for (const btn of choices) {
   btn.addEventListener('click', () => startOrder(btn.dataset.request || btn.textContent));
 }
+
+customInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && event.isComposing) event.preventDefault();
+});
+
+compose.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const text = customInput.value.trim();
+  customInput.value = text;
+  if (!text) {
+    customInput.focus();
+    return;
+  }
+  startOrder(text);
+});
 
 backBtn.addEventListener('click', showDialog);

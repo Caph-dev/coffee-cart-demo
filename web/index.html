@@ -6,7 +6,7 @@
     <title>点单 · Jev 多意图</title>
     <meta
       name="description"
-      content="选一句点单，左侧看决策过程，右侧小票只留下确认过的饮品。"
+      content="左侧是咖啡菜单，右侧选一句或自己写。点单后，决策过程与小票分场。"
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -19,24 +19,69 @@
   <body>
     <main class="stage">
       <section class="dialog" id="dialog" aria-labelledby="dialog-title">
-        <p class="dialog__eyebrow">Jev · 多意图</p>
-        <h1 class="dialog__title" id="dialog-title">今天喝点什么？</h1>
-        <p class="dialog__lede">选一句。决策过程与小票分开，<br />小票只留下确认过的。</p>
-        <div class="dialog__choices" role="group" aria-label="点单选项">
-          <button type="button" class="choice" data-request="来两杯燕麦拿铁，再来个麦芬">
-            <span>两杯燕麦拿铁，再来个麦芬</span>
-          </button>
-          <button type="button" class="choice" data-request="美式热的，再来热巧克力">
-            <span>美式热的，再来热巧克力</span>
-          </button>
-          <button type="button" class="choice" data-request="那个绿色抹茶拿铁">
-            <span>那个绿色抹茶拿铁</span>
-          </button>
-          <button type="button" class="choice" data-request="来一杯拿铁">
-            <span>来一杯拿铁</span>
-          </button>
+        <div class="dialog__columns">
+          <section class="menu" aria-labelledby="menu-title">
+            <p class="dialog__eyebrow">菜单</p>
+            <h2 class="menu__title" id="menu-title">咖啡</h2>
+            <ul class="menu__list">
+              <li class="menu__item">
+                <p class="menu__name">美式</p>
+                <p class="menu__desc">浓缩加热水，可选热或冰</p>
+              </li>
+              <li class="menu__item">
+                <p class="menu__name">拿铁</p>
+                <p class="menu__desc">浓缩加牛奶，可选热或冰</p>
+              </li>
+              <li class="menu__item">
+                <p class="menu__name">燕麦拿铁</p>
+                <p class="menu__desc">浓缩加燕麦奶，可选热或冰</p>
+              </li>
+              <li class="menu__item">
+                <p class="menu__name">卡布奇诺</p>
+                <p class="menu__desc">浓缩、牛奶与奶泡</p>
+              </li>
+            </ul>
+          </section>
+
+          <div class="order">
+            <p class="dialog__eyebrow">Jev · 多意图</p>
+            <h1 class="dialog__title" id="dialog-title">今天喝点什么？</h1>
+            <p class="dialog__lede">选一句，或自己写。决策过程与小票分场，<br />小票只留下确认过的。</p>
+            <div class="dialog__choices" role="group" aria-label="点单选项">
+              <button type="button" class="choice" data-request="来两杯燕麦拿铁，再来个麦芬">
+                <span>两杯燕麦拿铁，再来个麦芬</span>
+              </button>
+              <button type="button" class="choice" data-request="美式热的，再来热巧克力">
+                <span>美式热的，再来热巧克力</span>
+              </button>
+              <button type="button" class="choice" data-request="那个绿色抹茶拿铁">
+                <span>那个绿色抹茶拿铁</span>
+              </button>
+              <button type="button" class="choice" data-request="来一杯拿铁">
+                <span>来一杯拿铁</span>
+              </button>
+              <button type="button" class="choice" data-request="来一份宫保鸡丁，再来碗炒饭">
+                <span>来一份宫保鸡丁，再来碗炒饭</span>
+              </button>
+            </div>
+            <form class="compose" id="compose">
+              <label class="compose__label" for="custom-order">自己写一句</label>
+              <div class="compose__row">
+                <input
+                  class="compose__input"
+                  id="custom-order"
+                  name="request"
+                  type="text"
+                  maxlength="500"
+                  autocomplete="off"
+                  placeholder="例如：一杯冰美式"
+                />
+                <button class="compose__submit" type="submit">点单</button>
+              </div>
+            </form>
+            <p class="dialog__note">菜单无抹茶，也无中餐；菜单外意图会空票收场。</p>
+          </div>
         </div>
-        <p class="dialog__note">菜单无抹茶；菜单外意图会空票收场。</p>
       </section>
 
       <section class="result" id="result" hidden>
