@@ -73,15 +73,27 @@ function itemCriteria(item) {
 }
 
 /**
+ * 菜单外、只是沾了「拿铁」的饮品。全局 Choice / on_menu 只把这些写成「不是拿铁」。
+ * 燕麦拿铁是菜单项，不在这里；它和拿铁的区分写在拿铁选项自己的 not 上。
+ */
+const LATTE_NEAR_MISSES = ['抹茶拿铁', '绿色抹茶拿铁', '香草拿铁'];
+
+function latteNearMissClause() {
+  return LATTE_NEAR_MISSES.map((name) => `${name}不是拿铁`).join('，');
+}
+
+/**
  * Choice：在还没计入的菜单项里选下一件，或 done。
  * done 即 shopping-cart cookbook 的 nothing_else：没有更多按本名点到的菜单项。
  * 数量和冷热不在这一问里拆开。相近名称不要收成最像的菜单项。
+ * 燕麦拿铁是菜单项：不要写进「不是拿铁」的全局相近名称列表。拿铁选项的 not 已经把它和拿铁分开。
  */
 export function buildChoiceQuestion(menu, foundNames = []) {
   const criteria = {};
   for (const item of menu) criteria[item.id] = itemCriteria(item);
   const already = foundNames.length ? foundNames.join('、') : '还没有';
   const everything = EVERYTHING_CHOICES.join('、');
+  const offerOat = menu.some((item) => item.id === 'oat_latte');
   criteria.all = {
     means: '用户要还没计入的菜单里每一件各来一份，而不是点名其中某一件。',
     use_when:
@@ -95,9 +107,14 @@ export function buildChoiceQuestion(menu, foundNames = []) {
     means: '除了已经计入的商品，没有其它按本名点到的菜单项，也不是要剩下的每一件各来一份。',
     use_when: '用户已经点完，或剩下的是菜单外、中餐，或只是相近名称。',
     do_not:
-      '不要用最像的菜单项顶替。抹茶拿铁、绿色抹茶拿铁、香草拿铁都不是拿铁。宫保鸡丁不在菜单里。' +
+      `不要用最像的菜单项顶替。${LATTE_NEAR_MISSES.join('、')}都不是拿铁。宫保鸡丁不在菜单里。` +
+      (offerOat ? '用户点了燕麦拿铁时不要选 done，选燕麦拿铁。' : '') +
       '用户要每样各来一份时不要选 done，选 all。',
   };
+
+  const oatLine = offerOat
+    ? '如果用户点的是燕麦拿铁这一件，就选燕麦拿铁。不要把它收成拿铁，也不要因为它名字里有「拿铁」就当成菜单外的相近名称、改选别的或 done。'
+    : '';
 
   return {
     type: 'choice',
@@ -105,7 +122,8 @@ export function buildChoiceQuestion(menu, foundNames = []) {
       `这是咖啡店点单。已经计入的商品：${already}。` +
       '在剩下的菜单项里，用户还用本名点到了哪一件？提到多件时，选最先用本名点到的那一件。' +
       '每一件最多出现一次；这一问不要按数量或冷热拆开。' +
-      '名字只是相近、或另一种饮品里夹了菜单上的字（抹茶拿铁不是拿铁，香草拿铁不是拿铁，燕麦拿铁不是拿铁），不要选最像的那件；还有别的本名就选那件，否则选 done。' +
+      oatLine +
+      `只有不在菜单上、只是相近的名字（${latteNearMissClause()}）才不要选最像的那件；这种时候还有别的本名就选那件，否则选 done。` +
       `如果用户要剩下的每一件各来一份（${everything}），选 all，不要收成其中一件，也不要当成菜单外的 done。` +
       '只按用户原始请求选择，不要加入用户没有点的商品。',
     criteria,
@@ -179,9 +197,11 @@ export function buildOrderTemperatureQuestion() {
 /**
  * 与找商品同一请求的 noul：剩下的菜单里还有没有按本名点到的。
  * Choice 必须落在某个选项上，相近名称容易被收成拿铁；这一问为否时，调用方不采用那个选项。
+ * 「拿铁」两个字的否定只覆盖菜单外的抹茶 / 香草。燕麦拿铁仍在菜单上时，点到本名要答 yes。
  */
 export function buildOnMenuQuestion(menu) {
   const names = menu.map((item) => item.name).join('、') || '没有';
+  const offerOat = menu.some((item) => item.id === 'oat_latte');
   return {
     type: 'noul',
     instructions: {
@@ -189,6 +209,7 @@ export function buildOnMenuQuestion(menu) {
       remaining: names,
       rule:
         '只沾了名字的一部分不算点到。不要把菜单外的饮品算成最像的那一件。' +
+        (offerOat ? '燕麦拿铁是完整的菜单本名，算点到了。' : '') +
         '「所有的都来一份」「全部来一份」「one of each」没有按本名点到某一件，这一问答 no；由 all 和 one_of_each 处理。',
     },
     criteria: {
@@ -205,7 +226,9 @@ export function buildOnMenuQuestion(menu) {
       false: {
         means: '剩下的请求里没有菜单项的本名。菜单外饮品、中餐、只是相近的名字，都算没有。',
         examples: ['那个绿色抹茶拿铁', '抹茶拿铁', '香草拿铁', '来一份宫保鸡丁，再来碗炒饭', '来杯咖啡'],
-        not: '抹茶拿铁、绿色抹茶拿铁、香草拿铁都不是拿铁。不要因为里面有「拿铁」两个字就答 yes。',
+        not:
+          `${LATTE_NEAR_MISSES.join('、')}都不是拿铁。不要因为里面有「拿铁」两个字就答 yes。` +
+          (offerOat ? '这条不适用于燕麦拿铁：它是菜单本名，点到了要答 yes。' : ''),
       },
     },
   };
@@ -287,13 +310,13 @@ export function buildCheckQuestion() {
     },
     criteria: {
       true: {
-        means: '用户点的就是 last_added 这一件。',
+        means: '用户点的就是 last_added 这一件。燕麦拿铁对上燕麦拿铁是这一件，不要因为带了「拿铁」两个字就答 no。',
         examples: ['来一杯拿铁 → 拿铁', '冰美式 → 美式', '两杯燕麦拿铁 → 燕麦拿铁', '热卡布奇诺 → 卡布奇诺'],
       },
       false: {
         means: '用户没点这件，或点的是另一种只沾了名字的饮品。',
         examples: ['那个绿色抹茶拿铁 → 拿铁', '抹茶拿铁 → 拿铁', '香草拿铁 → 拿铁', '宫保鸡丁 → 任何菜单项'],
-        not: '共享「拿铁」两个字不算点了拿铁。不要把相近名称留在购物车里。',
+        not: `共享「拿铁」两个字不算点了拿铁。不要把${LATTE_NEAR_MISSES.join('、')}这类菜单外的相近名称留在购物车里。`,
       },
     },
   };
