@@ -145,7 +145,7 @@ async function handleOrder(req, res) {
 
   const config = readConfig();
   if (!config.apiKey) {
-    sendJson(res, 503, { error: '服务器未配置 JEV_API_KEY' });
+    sendJson(res, 503, { error: '服务器还没配好，暂时不能点单' });
     return;
   }
 

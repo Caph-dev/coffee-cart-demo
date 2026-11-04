@@ -60,26 +60,74 @@ export function readConfig() {
   };
 }
 
+function itemCriteria(item) {
+  const not = Array.isArray(item.not) && item.not.length ? item.not.join('、') : '';
+  return {
+    is: `${item.name}：${item.desc}`,
+    only: `只在用户点的就是「${item.name}」这一件时选。热、冰、杯数都不另算一件。`,
+    not: not
+      ? `这些不是这一件，不要选：${not}。名字里夹了「${item.name}」但不是同一件的，也不要选。`
+      : `名字只是相近，或另一种商品里夹了「${item.name}」这几个字，都不要选。`,
+  };
+}
+
 /**
  * Choice：在还没计入的菜单项里选下一件，或 done。
- * done 即 shopping-cart cookbook 的 nothing_else：没有更多菜单内商品。
- * 数量不在这一问里拆开。
+ * done 即 shopping-cart cookbook 的 nothing_else：没有更多按本名点到的菜单项。
+ * 数量和冷热不在这一问里拆开。相近名称不要收成最像的菜单项。
  */
 export function buildChoiceQuestion(menu, foundNames = []) {
   const criteria = {};
-  for (const item of menu) criteria[item.id] = `${item.name}：${item.desc}`;
+  for (const item of menu) criteria[item.id] = itemCriteria(item);
   const already = foundNames.length ? foundNames.join('、') : '还没有';
-  criteria.done =
-    '除了已经计入的商品，点单里没有其它菜单内商品。用户已经点完，或剩下的请求无法用菜单满足（例如要的商品不在菜单里）。';
+  criteria.done = {
+    means: '除了已经计入的商品，没有其它按本名点到的菜单项。',
+    use_when: '用户已经点完，或剩下的是菜单外、中餐，或只是相近名称。',
+    do_not: '不要用最像的菜单项顶替。抹茶拿铁、绿色抹茶拿铁、香草拿铁都不是拿铁。宫保鸡丁不在菜单里。',
+  };
 
   return {
     type: 'choice',
     instructions:
       `这是咖啡店点单。已经计入的商品：${already}。` +
-      '在剩下的菜单项里，用户还提到了哪一件？提到多件时，选最先提到的那一件。' +
-      '每一件最多出现一次；这一问不要按数量拆成多件，数量会单独询问。' +
-      '没有更多菜单内商品时选 done。只按用户原始请求选择，不要加入用户没有点的商品。',
+      '在剩下的菜单项里，用户还用本名点到了哪一件？提到多件时，选最先用本名点到的那一件。' +
+      '每一件最多出现一次；这一问不要按数量或冷热拆开。' +
+      '名字只是相近、或另一种饮品里夹了菜单上的字（抹茶拿铁不是拿铁，香草拿铁不是拿铁，燕麦拿铁不是拿铁），不要选最像的那件；还有别的本名就选那件，否则选 done。' +
+      '只按用户原始请求选择，不要加入用户没有点的商品。',
     criteria,
+  };
+}
+
+/**
+ * 与找商品同一请求的 noul：剩下的菜单里还有没有按本名点到的。
+ * Choice 必须落在某个选项上，相近名称容易被收成拿铁；这一问为否时，调用方不采用那个选项。
+ */
+export function buildOnMenuQuestion(menu) {
+  const names = menu.map((item) => item.name).join('、') || '没有';
+  return {
+    type: 'noul',
+    instructions: {
+      question: '在还没计入的菜单项里，用户有没有至少一件是按本名点到的？',
+      remaining: names,
+      rule: '只沾了名字的一部分不算点到。不要把菜单外的饮品算成最像的那一件。',
+    },
+    criteria: {
+      true: {
+        means: '剩下的菜单里，至少一件被用户按本名点到。同一句里另外夹了菜单外的商品，也不改变这一点。',
+        examples: [
+          '来一杯拿铁',
+          '冰美式',
+          '两杯燕麦拿铁，再来个麦芬',
+          '来一杯拿铁，再来份宫保鸡丁',
+          '抹茶拿铁，再来个麦芬：麦芬是菜单本名，所以 yes；不要把抹茶拿铁当成拿铁',
+        ],
+      },
+      false: {
+        means: '剩下的请求里没有菜单项的本名。菜单外饮品、中餐、只是相近的名字，都算没有。',
+        examples: ['那个绿色抹茶拿铁', '抹茶拿铁', '香草拿铁', '来一份宫保鸡丁，再来碗炒饭', '来杯咖啡'],
+        not: '抹茶拿铁、绿色抹茶拿铁、香草拿铁都不是拿铁。不要因为里面有「拿铁」两个字就答 yes。',
+      },
+    },
   };
 }
 
@@ -109,18 +157,64 @@ export function buildQuantityQuestion(item) {
   };
 }
 
-/** Check：对 last_added 做 noul 判断。 */
+/**
+ * Choice：这一杯咖啡的冷热。没说、常温、或互相矛盾，都是 unspecified，不要猜。
+ */
+export function buildTemperatureQuestion(item) {
+  const name = item?.name || '这一杯';
+  return {
+    type: 'choice',
+    instructions:
+      `只判断用户对「${name}」说的冷热。没说、说常温，或又热又冰互相矛盾，都选 unspecified。不要替客人猜热或冰。`,
+    criteria: {
+      hot: '要热的。覆盖：热、热的、加热、温热、hot。不是冰。',
+      iced: '要冰的。覆盖：冰、冰的、加冰、去冰、iced。不是热。',
+      unspecified: '没提冷热，或说了常温、室温，或同时要热又要冰。选这个，不要发明热或冰。',
+    },
+  };
+}
+
+/**
+ * Noul：刚选中的菜单项是不是用户点的那一件本身。
+ * 为否时不写入购物车。热、冰和杯数不影响这一问。
+ */
+export function buildExactQuestion(item) {
+  const name = item?.name || '这一项';
+  const notList = Array.isArray(item?.not) && item.not.length ? item.not.join('、') : '';
+  return {
+    type: 'noul',
+    instructions: {
+      question: `用户有没有点「${name}」这一件本身？`,
+      rule: '必须是这件商品的本名。热、冰、常温没说、以及杯数，都不改变是不是这一件。不要用相近名称顶上。',
+    },
+    criteria: {
+      true: `用户点的就是「${name}」。例如：来一杯${name}、热${name}、冰${name}、两杯${name}。`,
+      false: notList
+        ? `用户没点「${name}」本身。这些都不是：${notList}。只是名字里带了这几个字，也不算。`
+        : `用户没点「${name}」本身，或点的是菜单外、另一种只沾了名字的商品。`,
+    },
+  };
+}
+
+/** Check：对 last_added 做 noul 判断。相近名称共享的字不算点到了这件。 */
 export function buildCheckQuestion() {
   return {
     type: 'noul',
-    instructions:
-      'last_added 是上一轮刚加入购物车的商品，cart 是当前购物车，request 是用户原始点单。' +
-      '判断 last_added 是否明确属于菜单，并且被用户原始请求所覆盖。' +
-      '数量已经由单独的问题决定；这里只判断这件商品该不该留下，不要因为份数本身否定它。' +
-      '用户请求只提到菜单外商品时，任何菜单项都不算被覆盖。',
+    instructions: {
+      question: 'last_added 是不是用户点的那一件菜单商品本身？',
+      state: 'last_added 是刚写入的商品名，temperature 是已经分开判断的冷热，cart 是当前购物车，request 是用户原始点单。',
+      ignore: '数量和冷热已经单独决定。不要因为份数、热、冰或没说冷热而否定这件。',
+    },
     criteria: {
-      true: 'last_added 在菜单内，而且用户原始请求明确点到了它；数量或统称覆盖也算',
-      false: 'last_added 不在菜单内，或者用户原始请求没有点它',
+      true: {
+        means: '用户点的就是 last_added 这一件。',
+        examples: ['来一杯拿铁 → 拿铁', '冰美式 → 美式', '两杯燕麦拿铁 → 燕麦拿铁', '热卡布奇诺 → 卡布奇诺'],
+      },
+      false: {
+        means: '用户没点这件，或点的是另一种只沾了名字的饮品。',
+        examples: ['那个绿色抹茶拿铁 → 拿铁', '抹茶拿铁 → 拿铁', '香草拿铁 → 拿铁', '宫保鸡丁 → 任何菜单项'],
+        not: '共享「拿铁」两个字不算点了拿铁。不要把相近名称留在购物车里。',
+      },
     },
   };
 }

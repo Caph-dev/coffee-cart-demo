@@ -13,7 +13,10 @@ import {
   readConfig,
   buildPayload,
   buildChoiceQuestion,
+  buildOnMenuQuestion,
   buildQuantityQuestion,
+  buildTemperatureQuestion,
+  buildExactQuestion,
   buildCheckQuestion,
 } from './jev.mjs';
 import { runCart, NOUL_THRESHOLD } from './cart.mjs';
@@ -41,6 +44,8 @@ function printHelp() {
 
 数量 / quantity：Jev 在 one、two、three、invalid 里选。程序不解析数字。
 非法份数（0.7、-1、2^32 等）走 invalid，不写入购物车。
+冷热 / temperature：美式、拿铁、燕麦拿铁、卡布奇诺再问 hot、iced、unspecified。
+没说、常温或互相矛盾都是 unspecified，小票不编一个冷热。热巧克力只卖热的，不再单问。
 
 环境变量：
   JEV_BASE_URL   默认 https://ai.caph.me/v1
@@ -69,20 +74,27 @@ async function readRequestFromStdin() {
 function printDryRun(config, request) {
   const latte = MENU.find((item) => item.id === 'latte');
   const choiceState = { request, cart: [], found: [], last_added: null };
-  console.log('[dry-run] 不调用 API。首轮 choice payload（剩下的菜单 + done）：');
+  console.log('[dry-run] 不调用 API。首轮 choice payload（剩下的菜单 + done，外加 on_menu）：');
   console.log(
     JSON.stringify(
-      buildPayload(config, choiceState, { next_item: buildChoiceQuestion(MENU, []) }),
+      buildPayload(config, choiceState, {
+        next_item: buildChoiceQuestion(MENU, []),
+        on_menu: buildOnMenuQuestion(MENU),
+      }),
       null,
       2,
     ),
   );
 
   const quantityState = { request, cart: [], item: latte.name, found: [latte.name] };
-  console.log('\n[dry-run] 找到一件后的 quantity payload 示例（拿铁 → one/two/three/invalid）：');
+  console.log('\n[dry-run] 找到拿铁后的字段 payload（数量、是不是这一件、冷热）：');
   console.log(
     JSON.stringify(
-      buildPayload(config, quantityState, { quantity: buildQuantityQuestion(latte) }),
+      buildPayload(config, quantityState, {
+        quantity: buildQuantityQuestion(latte),
+        exact_item: buildExactQuestion(latte),
+        temperature: buildTemperatureQuestion(latte),
+      }),
       null,
       2,
     ),
@@ -129,22 +141,37 @@ async function main() {
       case 'round':
         console.log(`\n=== 第 ${event.round} 轮 ===`);
         break;
-      case 'choice':
-        console.log(
-          `choice：${event.raw || '(空)'}${
-            typeof event.confidence === 'number' ? `（confidence=${event.confidence.toFixed(2)}）` : ''
-          }`,
-        );
+      case 'choice': {
+        const picked = event.rejected === 'not_on_menu'
+          ? '不在菜单'
+          : event.matched?.id === 'done'
+            ? '没有更多菜单内商品'
+            : event.matched?.name || '未识别';
+        const choiceConf =
+          typeof event.confidence === 'number' ? `（confidence=${event.confidence.toFixed(2)}）` : '';
+        console.log(`choice：${picked}${choiceConf}`);
         break;
+      }
+      case 'unmet':
+        console.log(`结果：${event.message || '不在菜单，菜单无法满足'}`);
+        break;
+      case 'temperature': {
+        const tempLabel = { hot: '热', iced: '冰', unspecified: '未说明' }[event.temperature] || '未说明';
+        const tempConf =
+          typeof event.confidence === 'number' ? `（confidence=${event.confidence.toFixed(2)}）` : '';
+        console.log(`温度：${event.item} → ${tempLabel}${tempConf}`);
+        break;
+      }
       case 'ignored':
         console.log(`结果：choice 不在菜单内，本轮忽略。菜单：${event.menu.join('、')}`);
         console.log(`cart：${JSON.stringify(event.cart)}`);
         break;
       case 'done':
         if (event.empty) {
-          console.log('用户没有从菜单选到任何商品。菜单：' + event.menu.join('、'));
+          console.log(event.message || '不在菜单，菜单无法满足');
+          console.log('菜单：' + event.menu.join('、'));
         } else {
-          console.log('用户选择 done，结束点单。');
+          console.log('没有更多菜单内商品，结束点单。');
         }
         break;
       case 'quantity': {
@@ -190,7 +217,7 @@ async function main() {
         }
         console.log('\n=== 最终订单 ===');
         if (event.total === 0) {
-          console.log('（空）没有可下单的商品。');
+          console.log(event.message || '没有可下单的商品。');
           console.log(`菜单：${menuNames().join('、')}`);
         } else {
           for (const { name, count } of event.items) console.log(`- ${name} × ${count}`);

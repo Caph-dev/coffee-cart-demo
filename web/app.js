@@ -17,7 +17,11 @@ let abortCtrl = null;
 let confirmed = [];
 let pendingNames = [];
 let receiptMode = 'wait';
+let receiptMessage = '';
 let totalCount = 0;
+
+const QUANTITY_LABEL = { one: '一份', two: '两份', three: '三份', invalid: '非法' };
+const TEMPERATURE_LABEL = { hot: '热', iced: '冰', unspecified: '未说明' };
 
 function setChoicesDisabled(disabled) {
   for (const btn of choices) btn.disabled = disabled;
@@ -42,6 +46,7 @@ function showDialog() {
   confirmed = [];
   pendingNames = [];
   receiptMode = 'wait';
+  receiptMessage = '';
   totalCount = 0;
   renderReceipt();
   setChoicesDisabled(false);
@@ -55,6 +60,7 @@ function showResult(request) {
   confirmed = [];
   pendingNames = [];
   receiptMode = 'wait';
+  receiptMessage = '';
   totalCount = 0;
   renderReceipt();
 }
@@ -122,10 +128,11 @@ function renderReceipt() {
   if (!rows.length) {
     receiptLines.replaceChildren();
     placeholder.hidden = false;
-    placeholder.textContent =
-      receiptMode === 'fault' ? '未能写入' : receiptMode === 'empty' ? '（空票）' : '等待确认…';
+    placeholder.textContent = receiptMessage || (receiptMode === 'fault' ? '未能写入' : '等待确认…');
+    placeholder.classList.toggle('is-unmet', receiptMode === 'unmet' || receiptMode === 'invalid' || receiptMode === 'empty');
   } else {
     placeholder.hidden = true;
+    placeholder.classList.remove('is-unmet');
     const existing = new Map(
       [...receiptLines.querySelectorAll('.receipt__line')].map((li) => [li.dataset.key, li]),
     );
@@ -164,9 +171,19 @@ function namesFromFinal(event) {
 }
 
 function formatCheck(event) {
-  if (event.value == null || !event.kind) return '—';
+  if (event.value == null) return '未返回';
   const value = Number(event.value);
-  return `${event.kind} ${Number.isFinite(value) ? value.toFixed(2) : event.value}`;
+  return Number.isFinite(value) ? value.toFixed(2) : String(event.value);
+}
+
+function emptyReceipt(event) {
+  if (event.outcome === 'invalid_quantity' || event.reason === 'invalid_quantity') {
+    receiptMode = 'invalid';
+    receiptMessage = event.message || '数量非法，无法满足';
+    return;
+  }
+  receiptMode = event.outcome === 'empty' ? 'empty' : 'unmet';
+  receiptMessage = event.message || '不在菜单，菜单无法满足';
 }
 
 async function runOrder(request, gen, signal) {
@@ -200,21 +217,60 @@ async function runOrder(request, gen, signal) {
 
   const handleEvent = (event) => {
     if (gen !== orderGen) return;
+    const opening = processLog.querySelector('.step--status .step__text');
+    if (opening?.textContent === '正在点单…') opening.closest('li')?.remove();
     switch (event.type) {
       case 'choice': {
-        const label = event.matched?.name || event.raw || '（空）';
         const conf =
           typeof event.confidence === 'number' ? event.confidence.toFixed(2) : '';
-        addStep({ mark: '选择', text: label, meta: conf, kind: 'choice' });
+        if (event.rejected === 'not_on_menu') {
+          addStep({ mark: '选择', text: '不在菜单', meta: conf, kind: 'unmet' });
+          break;
+        }
+        if (event.matched?.id === 'done') {
+          addStep({
+            mark: '选择',
+            text: event.offMenu ? '不在菜单' : '没有更多了',
+            meta: conf,
+            kind: event.offMenu ? 'unmet' : 'done',
+          });
+          break;
+        }
+        if (!event.matched?.name) {
+          addStep({ mark: '选择', text: '未识别', meta: conf, kind: 'ignored' });
+          break;
+        }
+        addStep({ mark: '选择', text: event.matched.name, meta: conf, kind: 'choice' });
         break;
       }
       case 'quantity':
         addStep({
           mark: '数量',
-          text: event.item || '（未知）',
-          meta: event.quantity || event.raw || '（空）',
+          text: event.item || '这一项',
+          meta: QUANTITY_LABEL[event.quantity] || '未说明',
           kind: 'choice',
         });
+        break;
+      case 'temperature':
+        addStep({
+          mark: '温度',
+          text: event.item || '这一杯',
+          meta: TEMPERATURE_LABEL[event.temperature] || '未说明',
+          kind: 'choice',
+        });
+        break;
+      case 'unmet':
+        addStep({
+          mark: '菜单',
+          text: '不在菜单',
+          meta: '无法满足',
+          kind: 'unmet',
+        });
+        if (!confirmed.length && !pendingNames.length) {
+          receiptMode = 'unmet';
+          receiptMessage = event.message || '不在菜单，菜单无法满足';
+          renderReceipt();
+        }
         break;
       case 'invalid':
         addStep({
@@ -254,9 +310,13 @@ async function runOrder(request, gen, signal) {
       case 'done':
         addStep({
           mark: '收票',
-          text: event.empty ? '菜单无法满足' : '点完了',
-          kind: 'done',
+          text: event.empty ? event.message || '不在菜单，菜单无法满足' : '点完了',
+          kind: event.empty ? 'unmet' : 'done',
         });
+        if (event.empty && !confirmed.length && !pendingNames.length) {
+          emptyReceipt(event);
+          renderReceipt();
+        }
         break;
       case 'stop':
         addStep({
@@ -271,7 +331,12 @@ async function runOrder(request, gen, signal) {
         confirmed = names;
         pendingNames = [];
         totalCount = typeof event.total === 'number' ? event.total : names.length;
-        receiptMode = names.length ? 'items' : 'empty';
+        if (names.length) {
+          receiptMode = 'items';
+          receiptMessage = '';
+        } else {
+          emptyReceipt(event);
+        }
         renderReceipt();
         if (event.stoppedByLimit) {
           addStep({ mark: '停止', text: '达到请求上限', kind: 'status' });

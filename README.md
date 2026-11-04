@@ -1,6 +1,6 @@
 # Coffee Cart Demo
 
-公司内部点咖啡 demo：用 [Jev](https://ai.caph.me) 把一句口语点单写成订单。先用缩小候选的 **Choice** 找出每件商品（每件最多一次），再问 **数量 Choice**（`one` / `two` / `three` / `invalid`），合法份数写入购物车后做 **last_added check**。份数由 Jev 归类，应用代码不解析数字。
+公司内部点咖啡 demo：用 [Jev](https://ai.caph.me) 把一句口语点单写成订单。先用缩小候选的 **Choice** 找出每件商品（每件最多一次），同一请求里用 **noul** 确认还有没有按本名点到的菜单项。再问这件是不是本人、**数量 Choice**（`one` / `two` / `three` / `invalid`），咖啡再问 **冷热 Choice**（`hot` / `iced` / `unspecified`）。合法份数写入购物车后做 **last_added check**。份数和冷热由 Jev 归类，应用代码不解析原文。
 
 前端是当面演示用的点单页：左侧只列咖啡，右侧是预设和自己写的一句，点选后分成决策过程与小票两栏。
 
@@ -25,25 +25,28 @@ npm start
 
 美式、拿铁、燕麦拿铁、卡布奇诺、热巧克力、麦芬、司康。
 
-**抹茶故意不在菜单里**。菜单外意图应直接 `done`、空购物车（`done` 即 [shopping-cart cookbook](https://docs.typesafe.ai/cookbooks/cart_from_primitives) 的 `nothing_else`）。
+**抹茶故意不在菜单里**。抹茶拿铁、绿色抹茶拿铁、香草拿铁都不是拿铁，不能收成菜单里最像的那一杯。菜单外或只是相近名称时，购物车保持为空，过程和小票写明「不在菜单，菜单无法满足」（`done` 即 [shopping-cart cookbook](https://docs.typesafe.ai/cookbooks/cart_from_primitives) 的 `nothing_else`）。
 
 ## 数量 / Quantity
 
 对齐 cookbook 的两段式，并多一个 `invalid` 桶。Jev classifies the count into `one`, `two`, `three`, or `invalid`. The application only reads that label.
 
-1. **找商品 / Find.** 每轮 Choice 只包含还没出现过的菜单项和 `done`。选中后从下一轮拿掉。没有更多菜单项时选 `done`。
-2. **问数量 / Quantity.** 对找到的每一件再发 Choice：`one` / `two` / `three` / `invalid`。criteria 覆盖阿拉伯数字、中文（一杯/一份、两杯、三杯；一/二/两/三）和英文 one/two/three。`invalid` 覆盖小数（0.7）、零、负数（-1）、过大（2^32），以及任何不是 1、2、3 的数量。
-3. **写入 / Cart.** `one`/`two`/`three` 按份数重复品名（小票仍是「名称 × N」），然后做 noul check。`invalid` 不加入，过程日志打出「数量非法，无法满足」。
-4. **上限 / Cap.** `MAX_ITEM_REQUESTS`（菜单件数 + 1）和 `MAX_REQUESTS`（再乘 3，盖住找商品、数量、check）是硬上限。
+1. **找商品 / Find.** 每轮 Choice 只包含还没出现过的菜单项和 `done`。同一请求的 `on_menu` noul 问：剩下的菜单里还有没有按本名点到的。相近名称（抹茶拿铁、香草拿铁）不算。这一问为否时，不采用 Choice 里那个最像的选项。选中后从下一轮拿掉。没有更多菜单项时选 `done`。
+2. **问数量 / Quantity.** 对找到的每一件再发 Choice：`one` / `two` / `three` / `invalid`。同一请求还有 `exact_item`：是不是这一件本身。criteria 覆盖阿拉伯数字、中文（一杯/一份、两杯、三杯；一/二/两/三）和英文 one/two/three。`invalid` 覆盖小数（0.7）、零、负数（-1）、过大（2^32），以及任何不是 1、2、3 的数量。
+3. **冷热 / Temperature.** 美式、拿铁、燕麦拿铁、卡布奇诺再问 `hot` / `iced` / `unspecified`。criteria 覆盖热 / 冰 / 常温未说，以及 hot / iced。没说、常温、互相矛盾都是 `unspecified`，小票不编冷热。说了才写成「拿铁 · 热」「美式 · 冰」。热巧克力只卖热的，不再单问，小票就写「热巧克力」。
+4. **写入 / Cart.** `exact_item` 为否时不写入。`one`/`two`/`three` 按份数重复品名（小票仍是「名称 × N」），然后做 noul check。`invalid` 不加入，过程日志打出「数量非法，无法满足」。check 不把只共享名字的饮品留下。
+5. **上限 / Cap.** `MAX_ITEM_REQUESTS`（菜单件数 + 1）和 `MAX_REQUESTS`（再乘 3，盖住找商品、字段、check）是硬上限。
 
 手动路径 / Manual path：`npm test`，或配置 key 后 `node src/order.mjs "…"`。`npm run dry-run` 只打印 payload。
 
 | 点单 | 结果 |
 | --- | --- |
-| 来两杯拿铁 | 拿铁 × 2 |
+| 来两杯拿铁 | 拿铁 × 2（没说冷热则不写热或冰） |
+| 两杯热拿铁 | 拿铁 · 热 × 2 |
+| 一杯冰美式 | 美式 · 冰 × 1 |
 | 来0.7杯拿铁、来2^32杯拿铁、来-1杯拿铁 | `invalid`，不加入，购物车不堆数量 |
 | 来两杯燕麦拿铁，再来个麦芬 | 燕麦拿铁 × 2，麦芬 × 1 |
-| 那个绿色抹茶拿铁 | `done`，空购物车 |
+| 那个绿色抹茶拿铁、抹茶拿铁、香草拿铁 | 不收成拿铁；空购物车，并写明不在菜单 |
 
 ## 结构
 
@@ -60,7 +63,7 @@ npm start
 
 - `GET /api/health` — 是否配置了 key
 - `GET /api/menu` — 菜单 JSON
-- `POST /api/order` — body `{"request":"..."}`，响应为 SSE，`data:` 行为 JSON 事件（`choice` / `quantity` / `invalid` / `added` / `check` / `final` …）
+- `POST /api/order` — body `{"request":"..."}`，响应为 SSE，`data:` 行为 JSON 事件（`choice` / `quantity` / `temperature` / `unmet` / `invalid` / `added` / `check` / `final` …）
 
 ## 环境变量
 
@@ -75,6 +78,6 @@ npm start
 
 ## 前端
 
-单页：左侧只列咖啡（美式、拿铁、燕麦拿铁、卡布奇诺），右侧选预设或自己写一句。点单后，左侧流式决策过程，右侧小票只写入已确认的饮品。用来展示 **Jev + 多意图购物车**。静态资源在服务启动时按文件内容哈希，HTML 为 `Cache-Control: no-cache`。
+单页：左侧只列咖啡（美式、拿铁、燕麦拿铁、卡布奇诺），右侧选预设或自己写一句。点单后，左侧流式决策过程，右侧小票只写入已确认的饮品；说了冷热才在品名后写「· 热」或「· 冰」。菜单无法满足时，过程和小票都写明「不在菜单，菜单无法满足」。用来展示 **Jev + 多意图购物车**。静态资源在服务启动时按文件内容哈希，HTML 为 `Cache-Control: no-cache`。
 
 启动：`npm start`，打开对应端口；线上：`https://coffee-demo.caph.me`。

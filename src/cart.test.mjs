@@ -1,15 +1,32 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MENU } from './menu.mjs';
-import { buildChoiceQuestion, buildQuantityQuestion } from './jev.mjs';
-import { classifyQuantity, runCart } from './cart.mjs';
+import { MENU, findMenuChoice } from './menu.mjs';
+import {
+  buildChoiceQuestion,
+  buildQuantityQuestion,
+  buildTemperatureQuestion,
+  buildExactQuestion,
+  buildCheckQuestion,
+  buildOnMenuQuestion,
+} from './jev.mjs';
+import { classifyQuantity, classifyTemperature, runCart, OFF_MENU_MESSAGE, INVALID_QTY_MESSAGE } from './cart.mjs';
 
-function choice(id, confidence = 0.99) {
-  return { answers: { next_item: { choice: id, confidence } } };
+function choice(id, confidence = 0.99, noul = 0.96) {
+  return { answers: { next_item: { choice: id, confidence }, on_menu: { noul } } };
 }
 
-function quantity(value, confidence = 0.97) {
-  return { answers: { quantity: { choice: value, confidence } } };
+function quantity(value, confidence = 0.97, extras = {}) {
+  const answers = {
+    quantity: { choice: value, confidence },
+    exact_item: { noul: Object.hasOwn(extras, 'exact') ? extras.exact : 0.96 },
+  };
+  if (Object.hasOwn(extras, 'temperature')) {
+    answers.temperature = {
+      choice: extras.temperature,
+      confidence: extras.temperatureConfidence ?? 0.98,
+    };
+  }
+  return { answers };
 }
 
 function check(noul = 0.9) {
@@ -171,14 +188,18 @@ test('两杯燕麦拿铁再来个麦芬 keeps both lines and shrinks the menu', 
 });
 
 test('抹茶 resolves to done and an empty cart', async () => {
-  const { callJev, calls } = script([() => choice('done', 0.52)]);
+  const { callJev, calls } = script([() => choice('done', 0.52, 0.2)]);
   const events = [];
   const summary = await runCart({}, '那个绿色抹茶拿铁', (event) => events.push(event), { callJev });
   assert.deepEqual(summary.cart, []);
   assert.equal(summary.total, 0);
+  assert.equal(summary.outcome, 'off_menu');
+  assert.equal(summary.message, OFF_MENU_MESSAGE);
   assert.equal(events.find((event) => event.type === 'done').empty, true);
+  assert.equal(events.find((event) => event.type === 'choice').offMenu, true);
   assert.equal(calls.length, 1);
   assert.equal(events.some((event) => event.type === 'quantity'), false);
+  assert.equal(summary.cart.includes('拿铁'), false);
 });
 
 test('an invalid line does not block a later legal item', async () => {
@@ -263,4 +284,213 @@ test('every menu item is found at most once when the menu runs out', async () =>
     .filter((payload) => payload.questions.next_item)
     .map((payload) => Object.keys(payload.questions.next_item.criteria).filter((key) => key !== 'done'));
   assert.deepEqual(offered.map((keys) => keys.length), ids.map((_, index) => ids.length - index));
+});
+
+test('near-miss names do not match a shorter menu item', () => {
+  for (const phrase of ['抹茶拿铁', '那个绿色抹茶拿铁', '绿色抹茶拿铁', '香草拿铁', '焦糖拿铁', '拿']) {
+    assert.equal(findMenuChoice(phrase), null, phrase);
+  }
+  assert.equal(findMenuChoice('latte').id, 'latte');
+  assert.equal(findMenuChoice('拿铁').id, 'latte');
+  assert.equal(findMenuChoice('拿铁咖啡').id, 'latte');
+  assert.equal(findMenuChoice('燕麦拿铁').id, 'oat_latte');
+  assert.equal(findMenuChoice('latte（拿铁）').id, 'latte');
+  assert.equal(findMenuChoice('oat_latte（燕麦拿铁）').id, 'oat_latte');
+  assert.equal(findMenuChoice('抹茶拿铁（latte）'), null);
+  assert.equal(findMenuChoice('done').id, 'done');
+});
+
+test('choice, exact, and check criteria refuse to substitute 拿铁 for 抹茶拿铁', () => {
+  const choiceQuestion = buildChoiceQuestion(MENU, []);
+  const latte = JSON.stringify(choiceQuestion.criteria.latte);
+  const done = JSON.stringify(choiceQuestion.criteria.done);
+  assert.match(latte, /抹茶拿铁/);
+  assert.match(latte, /香草拿铁/);
+  assert.match(done, /不要用最像的菜单项顶替/);
+  assert.match(done, /抹茶拿铁/);
+
+  const onMenu = JSON.stringify(buildOnMenuQuestion(MENU));
+  assert.match(onMenu, /那个绿色抹茶拿铁/);
+  assert.match(onMenu, /香草拿铁/);
+  assert.match(onMenu, /不要因为里面有「拿铁」两个字就答 yes/);
+
+  const exact = JSON.stringify(buildExactQuestion(MENU.find((item) => item.id === 'latte')));
+  assert.match(exact, /抹茶拿铁/);
+  assert.match(exact, /绿色抹茶拿铁/);
+
+  const check = JSON.stringify(buildCheckQuestion());
+  assert.match(check, /那个绿色抹茶拿铁/);
+  assert.match(check, /共享「拿铁」两个字不算点了拿铁/);
+});
+
+test('抹茶拿铁 cannot add 拿铁 when choice returns latte', async () => {
+  const { callJev, calls } = script([
+    (payload) => {
+      assert.match(JSON.stringify(payload.questions.next_item.criteria.latte), /抹茶拿铁/);
+      assert.equal(payload.questions.on_menu.type, 'noul');
+      return {
+        answers: {
+          next_item: { choice: 'latte', confidence: 0.54 },
+          on_menu: { noul: 0.12 },
+        },
+      };
+    },
+  ]);
+  const events = [];
+  const summary = await runCart({}, '那个绿色抹茶拿铁', (event) => events.push(event), { callJev });
+
+  assert.deepEqual(summary.cart, []);
+  assert.equal(summary.outcome, 'off_menu');
+  assert.equal(summary.message, OFF_MENU_MESSAGE);
+  assert.equal(summary.cart.some((name) => name.includes('拿铁')), false);
+  assert.equal(events.some((event) => event.type === 'added'), false);
+  assert.equal(events.some((event) => event.type === 'quantity'), false);
+  assert.equal(calls.some((payload) => payload.questions.quantity), false);
+  assert.equal(calls.length, 1);
+  const choiceEvent = events.find((event) => event.type === 'choice');
+  assert.equal(choiceEvent.matched, null);
+  assert.equal(choiceEvent.rejected, 'not_on_menu');
+});
+
+test('a raw near-miss choice is not parsed into 拿铁', async () => {
+  const { callJev } = script([
+    () => ({
+      answers: {
+        next_item: { choice: '抹茶拿铁', confidence: 0.4 },
+        on_menu: { noul: 0.08 },
+      },
+    }),
+  ]);
+  const summary = await runCart({}, '抹茶拿铁', () => {}, { callJev });
+  assert.deepEqual(summary.cart, []);
+  assert.equal(summary.message, OFF_MENU_MESSAGE);
+  assert.equal(summary.cart.some((name) => name.includes('拿铁')), false);
+});
+
+test('抹茶拿铁再来个麦芬 drops the latte stand-in and keeps the muffin', async () => {
+  const { callJev } = script([
+    () => choice('latte', 0.65, 0.9),
+    (payload) => {
+      assert.match(JSON.stringify(payload.questions.exact_item), /抹茶拿铁/);
+      return quantity('one', 1, { exact: 0.1, temperature: 'hot' });
+    },
+    (payload) => {
+      assert.equal(payload.questions.next_item.criteria.latte, undefined);
+      assert.ok(payload.questions.next_item.criteria.muffin);
+      assert.equal(payload.questions.temperature, undefined);
+      return choice('muffin', 0.96, 0.95);
+    },
+    (payload) => {
+      assert.equal(payload.questions.temperature, undefined);
+      assert.ok(payload.questions.exact_item);
+      return quantity('one');
+    },
+    () => check(0.93),
+    () => choice('done', 1, 0.2),
+  ]);
+  const events = [];
+  const summary = await runCart({}, '抹茶拿铁，再来个麦芬', (event) => events.push(event), { callJev });
+  assert.deepEqual(summary.cart, ['麦芬']);
+  assert.equal(summary.cart.some((name) => name.includes('拿铁')), false);
+  assert.equal(events.some((event) => event.type === 'added' && String(event.item).includes('拿铁')), false);
+  assert.equal(events.some((event) => event.type === 'unmet'), true);
+});
+
+test('classifyTemperature only accepts hot, iced, and unspecified', () => {
+  assert.deepEqual(classifyTemperature('iced'), { raw: 'iced', temperature: 'iced' });
+  assert.deepEqual(classifyTemperature(' HOT '), { raw: 'hot', temperature: 'hot' });
+  assert.equal(classifyTemperature('unspecified').temperature, 'unspecified');
+  for (const raw of ['热', '冰', '常温', 'both', 'invalid', 'warm', '', null]) {
+    assert.equal(classifyTemperature(raw).temperature, 'unspecified', String(raw));
+  }
+});
+
+test('temperature criteria cover 热, 冰, 常温, hot, and iced', () => {
+  const question = buildTemperatureQuestion({ id: 'americano', name: '美式' });
+  assert.equal(question.type, 'choice');
+  assert.deepEqual(Object.keys(question.criteria), ['hot', 'iced', 'unspecified']);
+  const blob = JSON.stringify(question);
+  for (const token of ['热', '冰', '常温', 'hot', 'iced']) {
+    assert.ok(blob.includes(token), token);
+  }
+  assert.match(question.instructions, /unspecified/);
+  assert.match(question.instructions, /不要替客人猜/);
+});
+
+test('冰美式 is iced on the receipt and 热拿铁 is hot', async () => {
+  const iced = script([
+    () => choice('americano'),
+    (payload) => {
+      assert.equal(payload.state.item, '美式');
+      assert.deepEqual(Object.keys(payload.questions.temperature.criteria), ['hot', 'iced', 'unspecified']);
+      return quantity('one', 1, { temperature: 'iced' });
+    },
+    () => check(0.95),
+    () => choice('done'),
+  ]);
+  const icedSummary = await runCart({}, '一杯冰美式', () => {}, { callJev: iced.callJev });
+  assert.deepEqual(icedSummary.cart, ['美式 · 冰']);
+  assert.deepEqual(icedSummary.items, [{ name: '美式 · 冰', count: 1 }]);
+
+  const hot = script([
+    () => choice('latte'),
+    () => quantity('two', 1, { temperature: 'hot' }),
+    () => check(0.96),
+    () => choice('done'),
+  ]);
+  const hotEvents = [];
+  const hotSummary = await runCart({}, '两杯热拿铁', (event) => hotEvents.push(event), { callJev: hot.callJev });
+  assert.deepEqual(hotSummary.cart, ['拿铁 · 热', '拿铁 · 热']);
+  assert.equal(hotEvents.find((event) => event.type === 'temperature').temperature, 'hot');
+  assert.equal(hotEvents.find((event) => event.type === 'added').item, '拿铁 · 热');
+});
+
+test('unmentioned or illegal temperature stays unspecified and is not invented', async () => {
+  for (const token of [undefined, 'unspecified', 'both', '常温']) {
+    const { callJev } = script([
+      () => choice('americano'),
+      () => quantity('one', 1, { temperature: token }),
+      () => check(0.94),
+      () => choice('done'),
+    ]);
+    const events = [];
+    const summary = await runCart({}, '来一杯美式', (event) => events.push(event), { callJev });
+    assert.deepEqual(summary.cart, ['美式'], String(token));
+    assert.equal(events.find((event) => event.type === 'temperature').temperature, 'unspecified', String(token));
+    assert.equal(summary.cart.some((name) => name.includes('热') || name.includes('冰')), false);
+  }
+});
+
+test('热巧克力 is hot-only and does not get a temperature choice', async () => {
+  const { callJev } = script([
+    (payload) => {
+      const criteria = JSON.stringify(payload.questions.next_item.criteria.hot_chocolate);
+      assert.match(criteria, /冰巧克力/);
+      return choice('hot_chocolate');
+    },
+    (payload) => {
+      assert.equal(payload.questions.temperature, undefined);
+      assert.ok(payload.questions.quantity);
+      assert.ok(payload.questions.exact_item);
+      return quantity('one');
+    },
+    () => check(0.9),
+    () => choice('done'),
+  ]);
+  const events = [];
+  const summary = await runCart({}, '热巧克力', (event) => events.push(event), { callJev });
+  assert.deepEqual(summary.cart, ['热巧克力']);
+  assert.equal(events.some((event) => event.type === 'temperature'), false);
+});
+
+test('an invalid quantity still reports 数量非法 and does not become an off-menu ticket', async () => {
+  const { callJev } = script([
+    () => choice('latte'),
+    () => quantity('invalid'),
+    () => choice('done'),
+  ]);
+  const summary = await runCart({}, '来0.7杯拿铁', () => {}, { callJev });
+  assert.deepEqual(summary.cart, []);
+  assert.equal(summary.outcome, 'invalid_quantity');
+  assert.equal(summary.message, INVALID_QTY_MESSAGE);
 });
