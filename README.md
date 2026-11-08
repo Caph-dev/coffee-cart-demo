@@ -63,6 +63,14 @@ npm start
 | `src/server.mjs` | 静态站点 + `POST /api/order`（SSE） |
 | `web/` | 点单页（对话框 → 决策过程 / 小票） |
 
+## 一次时延记录
+
+页末有 2026-11-08 15:56–15:57（新加坡时间）的静态结果。代码固定 `a28b202306300924a46a2fdf1ecdf61b568ae627`。数字在 `web/data/luna-20261108.json`。页面上的毫秒保留一位小数，按这个文件四舍五入。打开页面不会再次请求模型。
+
+两边都走用户网关 `https://ai.caph.me/v1`。Jev 用现有 `runCart`，一单多次请求，这次返回 `jev-1.14.0`。GPT-6 Luna 走 `/chat/completions`，一次整单，`json_object` 加本地 `EXTRACTION_SCHEMA` 校验，再走店规。这次不是 strict JSON schema，也不是厂商直连。5 个样本各 5 次，双方各 25 单，AB/BA 交替，并发 1，各 1 次预热不计分，零重试。计时含完整响应、解析、校验和店规处理，不是首 token。
+
+这组样本的中位是 Jev 897.6 ms、Luna 1683.7 ms，双方 25/25。46.7% 是两个中位数的相对差，(1683.659 − 897.608) / 1683.659，不是每单降幅。两商品样本 Luna 中位 1956.0 ms，Jev 2091.9 ms，范围重叠。请求写了 `reasoning_effort: none`，返回没有 `reasoning_tokens` 字段；缺字段不是 0，也不能证明思考已关闭。Jev 的 25 单没有 `total_tokens`，缺失同样不是 0。更早的 DeepSeek 记录不是同一时段，不放进这次排名。
+
 ## API
 
 - `GET /api/health` — 是否配置了 key

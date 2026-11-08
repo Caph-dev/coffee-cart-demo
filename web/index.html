@@ -4,7 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>点单</title>
-    <meta name="description" content="在售：咖啡、热巧克力、麦芬、司康。点选后分成决策过程与小票。" />
+    <meta
+      name="description"
+      content="在售：咖啡、热巧克力、麦芬、司康。点选后分成决策过程与小票。页末是 2026-11-08 的一次固定样本时延记录。"
+    />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -123,6 +126,182 @@
             </footer>
           </article>
         </div>
+      </section>
+
+      <section class="bench" id="bench" aria-labelledby="bench-title">
+        <p class="bench__kicker">2026-11-08 15:56–15:57 · 新加坡时间 · a28b202</p>
+        <h2 class="bench__title" id="bench-title">一次固定样本的时延</h2>
+        <p class="bench__lead">
+          两边都走用户网关 <span class="bench__mono">https://ai.caph.me/v1</span>。Jev
+          走现有多次请求，这次返回 <span class="bench__mono">jev-1.14.0</span>。<span class="bench__keep">GPT-6 Luna</span>
+          一次整单普通 JSON，返回 <span class="bench__mono">gpt-6-luna</span>。双方各 25
+          单都正确。
+        </p>
+
+        <div class="bench__totals">
+          <article class="bench__figure">
+            <p class="bench__figure-label">Jev 中位整单</p>
+            <p class="bench__ms">897.6<span> ms</span></p>
+            <p class="bench__figure-meta">25/25 · 范围 283.4–2134.6</p>
+          </article>
+          <article class="bench__figure">
+            <p class="bench__figure-label">Luna 中位整单</p>
+            <p class="bench__ms">1683.7<span> ms</span></p>
+            <p class="bench__figure-meta">25/25 · 范围 1309.3–8118.8</p>
+          </article>
+        </div>
+
+        <p class="bench__caveat">
+          46.7% 是整单中位时延的相对降低，(1683.659 − 897.608) / 1683.659。它不是每一单的降幅。两商品样本 Luna
+          中位 1956.0 ms，Jev 2091.9 ms，范围重叠。
+        </p>
+
+        <div class="bench__table-wrap">
+          <table class="bench__table">
+            <caption>
+              5 类订单，每类每方 5 次。第一行是中位毫秒，第二行是最小到最大。
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">样本</th>
+                <th scope="col">Jev</th>
+                <th scope="col">Luna</th>
+                <th scope="col">正确</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">
+                  一杯拿铁，冷热没说
+                  <span class="bench__expect">期望小票：拿铁 · 冰</span>
+                </th>
+                <td data-label="Jev">
+                  <span class="bench__num">1204.5 ms</span>
+                  <span class="bench__range">1202.2–1260.6</span>
+                </td>
+                <td data-label="Luna">
+                  <span class="bench__num">2975.1 ms</span>
+                  <span class="bench__range">2239.6–8118.8</span>
+                </td>
+                <td data-label="正确">双方 5/5</td>
+              </tr>
+              <tr class="is-overlap">
+                <th scope="row">
+                  两杯冰燕麦拿铁加麦芬
+                  <span class="bench__expect">期望小票：燕麦拿铁 · 冰 × 2，麦芬</span>
+                  <span class="bench__flag">中位 Luna 更低，范围重叠</span>
+                </th>
+                <td data-label="Jev">
+                  <span class="bench__num">2091.9 ms</span>
+                  <span class="bench__range">2059.4–2134.6</span>
+                </td>
+                <td data-label="Luna">
+                  <span class="bench__num">1956.0 ms</span>
+                  <span class="bench__range">1879.0–2299.3</span>
+                </td>
+                <td data-label="正确">双方 5/5</td>
+              </tr>
+              <tr>
+                <th scope="row">
+                  绿色抹茶拿铁，菜单外
+                  <span class="bench__expect">期望：空购物车，不在菜单</span>
+                </th>
+                <td data-label="Jev">
+                  <span class="bench__num">305.9 ms</span>
+                  <span class="bench__range">290.7–335.8</span>
+                </td>
+                <td data-label="Luna">
+                  <span class="bench__num">1471.2 ms</span>
+                  <span class="bench__range">1309.3–2131.4</span>
+                </td>
+                <td data-label="正确">双方 5/5</td>
+              </tr>
+              <tr>
+                <th scope="row">
+                  四杯拿铁，数量非法
+                  <span class="bench__expect">期望：空购物车，数量非法</span>
+                </th>
+                <td data-label="Jev">
+                  <span class="bench__num">897.6 ms</span>
+                  <span class="bench__range">874.3–944.7</span>
+                </td>
+                <td data-label="Luna">
+                  <span class="bench__num">1661.9 ms</span>
+                  <span class="bench__range">1573.2–2358.2</span>
+                </td>
+                <td data-label="正确">双方 5/5</td>
+              </tr>
+              <tr>
+                <th scope="row">
+                  每样一份，咖啡都热
+                  <span class="bench__expect">期望：四杯 · 热，热巧克力、麦芬、司康各一份</span>
+                </th>
+                <td data-label="Jev">
+                  <span class="bench__num">307.3 ms</span>
+                  <span class="bench__range">283.4–332.5</span>
+                </td>
+                <td data-label="Luna">
+                  <span class="bench__num">1479.7 ms</span>
+                  <span class="bench__range">1445.2–1683.7</span>
+                </td>
+                <td data-label="正确">双方 5/5</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <details class="bench__notes">
+          <summary>方法与限制</summary>
+          <div class="bench__notes-body">
+            <h3>比的是什么</h3>
+            <p>
+              代码固定
+              <span class="bench__mono">a28b202306300924a46a2fdf1ecdf61b568ae627</span>。记录完成于
+              2026-11-08 15:57:36（新加坡时间）。Jev 用仓库里的
+              <span class="bench__mono">runCart</span>，一单多次请求。Luna 用
+              <span class="bench__mono">/chat/completions</span>，一次整单，
+              <span class="bench__mono">json_object</span>，本地
+              <span class="bench__mono">EXTRACTION_SCHEMA</span> 校验后再走店规。这次记录是普通
+              JSON 加本地校验，服务端 strict JSON schema 不在这次对比里。
+            </p>
+            <h3>怎么跑的</h3>
+            <p>
+              5 个样本各 5 次，双方各 25 单计分。AB/BA 交替，并发 1，零重试。每方另有 1
+              次预热，共 2 单，不计分；预热也正确。计分请求 Jev 80 次、Luna 25 次。含预热本轮 HTTP
+              110 次，另有 1 次独立探测，合计 111 次。正确性按小票标签的多重集，不计顺序。没有
+              HTTP 错误、超时、schema 错误或业务错误，所以全部订单和仅正确订单的时延相同。
+            </p>
+            <h3>计时和思考</h3>
+            <p>
+              计时是整单墙钟，含完整响应、解析、校验和店规处理，不是首 token。Jev 单次尝试中位
+              299.8 ms（80 次），整单中位 897.6 ms，因为一单串了多次请求。Luna 每单 1
+              次请求，尝试中位 1683.5 ms，整单中位 1683.7 ms。请求写了
+              <span class="bench__mono">reasoning_effort: none</span>。全部返回的 usage
+              都没有 <span class="bench__mono">reasoning_tokens</span> 字段。缺字段不是
+              0，也不能证明网关按 none 关掉了思考。
+            </p>
+            <h3>用量不能直接比</h3>
+            <p>
+              Jev 上报 <span class="bench__mono">input_tokens</span> 178645、
+              <span class="bench__mono">output_tokens</span> 9555。25 单都没有
+              <span class="bench__mono">total_tokens</span>，缺失不是 0。Luna 上报
+              <span class="bench__mono">prompt_tokens</span> 30355、
+              <span class="bench__mono">completion_tokens</span> 825、
+              <span class="bench__mono">total_tokens</span> 31180。字段不同，这里不比成本。
+            </p>
+            <h3>不说明什么</h3>
+            <p>
+              样本名称按记录里的英文说明译成中文，用来指这 5 类；期望小票来自同一份记录。毫秒显示一位小数，由原始值四舍五入。绿色抹茶拿铁的
+              Luna 最小值是 1309.25 ms，这里写 1309.3。这是小样本、单网关、固定的 5
+              句混合。路由、网络和 Jev 的串行次数都在时延里。汇总中位不能推出所有任务，也不能推出每一单都更快。原始统计里的
+              p95 标成探索性，页面不展示。更早的 DeepSeek 记录不是同一时段，不放进这次排名。
+            </p>
+            <p>
+              原始数字：
+              <a href="/data/luna-20261108.json">luna-20261108.json</a>。打开页面不会再次请求模型。
+            </p>
+          </div>
+        </details>
       </section>
     </main>
     <script src="/app.js" type="module"></script>
