@@ -1,0 +1,123 @@
+{
+  "benchmark": "coffee-cart-20261108",
+  "generated_at": "2026-11-08T07:57:36.537Z",
+  "window_sgt": "2026-11-08 15:56–15:57",
+  "code_sha": "a28b202306300924a46a2fdf1ecdf61b568ae627",
+  "gateway": "https://ai.caph.me/v1",
+  "vendor_direct": false,
+  "timing": "wall clock through the full response, parse, local validation, and shop rules; not time to first token",
+  "schedule": {
+    "samples": 5,
+    "reps_per_side_per_sample": 5,
+    "measured_orders_per_side": 25,
+    "warmups_per_side": 1,
+    "warmup_orders_excluded": 2,
+    "order": "AB/BA alternating",
+    "concurrency": 1,
+    "retries": 0
+  },
+  "http": {
+    "scored_requests": { "jev": 80, "luna": 25 },
+    "this_run_including_warmups": 110,
+    "independent_probe": 1,
+    "total_with_probe": 111
+  },
+  "pooled_median_relative_reduction": {
+    "formula": "(luna_median_ms - jev_median_ms) / luna_median_ms",
+    "value": 0.46687066680367
+  },
+  "sides": {
+    "jev": {
+      "architecture": "existing runCart, multiple requests per order",
+      "response_model": "jev-1.14.0",
+      "measured_orders": 25,
+      "correct_orders": 25,
+      "scored_requests": 80,
+      "order_ms": { "n": 25, "median": 897.608, "min": 283.352, "max": 2134.6 },
+      "attempt_ms": { "n": 80, "median": 299.812, "min": 273.032, "max": 364.281 },
+      "usage": {
+        "input_tokens": 178645,
+        "output_tokens": 9555,
+        "total_tokens_field": "absent",
+        "total_tokens_missing_orders": 25,
+        "absence_is_not_zero": true
+      }
+    },
+    "luna": {
+      "architecture": "one whole-order request, plain JSON, local validation",
+      "endpoint": "https://ai.caph.me/v1/chat/completions",
+      "requested_model": "gpt-6-luna",
+      "response_model": "gpt-6-luna",
+      "response_format": "json_object",
+      "strict_schema": false,
+      "local_validation": "EXTRACTION_SCHEMA",
+      "requested_reasoning_effort": "none",
+      "reasoning_effort_honored_proven": false,
+      "reasoning_tokens": {
+        "field": "absent",
+        "numeric_orders": 0,
+        "null_orders": 25,
+        "absence_is_not_zero": true
+      },
+      "measured_orders": 25,
+      "correct_orders": 25,
+      "scored_requests": 25,
+      "order_ms": { "n": 25, "median": 1683.659, "min": 1309.25, "max": 8118.829 },
+      "attempt_ms": { "n": 25, "median": 1683.537, "min": 1309.126, "max": 8118.617 },
+      "usage": {
+        "prompt_tokens": 30355,
+        "completion_tokens": 825,
+        "total_tokens": 31180
+      }
+    }
+  },
+  "samples": [
+    {
+      "id": "latte_unspecified",
+      "label": "one latte, temperature unspecified (shop default iced)",
+      "expected_outcome": "items",
+      "expected_cart": ["拿铁 · 冰"],
+      "jev": { "correct": "5/5", "requests": 20, "median_ms": 1204.476, "min_ms": 1202.176, "max_ms": 1260.648 },
+      "luna": { "correct": "5/5", "requests": 5, "median_ms": 2975.093, "min_ms": 2239.619, "max_ms": 8118.829 }
+    },
+    {
+      "id": "iced_oat_muffin",
+      "label": "two iced oat lattes plus one muffin",
+      "expected_outcome": "items",
+      "expected_cart": ["燕麦拿铁 · 冰", "燕麦拿铁 · 冰", "麦芬"],
+      "ranges_overlap": true,
+      "lower_median": "luna",
+      "jev": { "correct": "5/5", "requests": 35, "median_ms": 2091.922, "min_ms": 2059.384, "max_ms": 2134.6 },
+      "luna": { "correct": "5/5", "requests": 5, "median_ms": 1956.019, "min_ms": 1878.975, "max_ms": 2299.312 }
+    },
+    {
+      "id": "green_matcha_rejected",
+      "label": "green matcha latte is off-menu",
+      "expected_outcome": "off_menu",
+      "expected_cart": [],
+      "jev": { "correct": "5/5", "requests": 5, "median_ms": 305.944, "min_ms": 290.714, "max_ms": 335.764 },
+      "luna": { "correct": "5/5", "requests": 5, "median_ms": 1471.209, "min_ms": 1309.25, "max_ms": 2131.418 }
+    },
+    {
+      "id": "four_latte_invalid",
+      "label": "four lattes is an invalid quantity",
+      "expected_outcome": "invalid_quantity",
+      "expected_cart": [],
+      "jev": { "correct": "5/5", "requests": 15, "median_ms": 897.608, "min_ms": 874.268, "max_ms": 944.659 },
+      "luna": { "correct": "5/5", "requests": 5, "median_ms": 1661.896, "min_ms": 1573.225, "max_ms": 2358.186 }
+    },
+    {
+      "id": "everything_all_hot",
+      "label": "everything one each, all hot",
+      "expected_outcome": "items",
+      "expected_cart": ["美式 · 热", "拿铁 · 热", "燕麦拿铁 · 热", "卡布奇诺 · 热", "热巧克力", "麦芬", "司康"],
+      "jev": { "correct": "5/5", "requests": 5, "median_ms": 307.346, "min_ms": 283.352, "max_ms": 332.454 },
+      "luna": { "correct": "5/5", "requests": 5, "median_ms": 1479.684, "min_ms": 1445.243, "max_ms": 1683.659 }
+    }
+  ],
+  "omitted": [
+    "p95 is exploratory in the source summary and is not shown",
+    "an older DeepSeek window is not ranked here",
+    "secrets and environment values are not included"
+  ]
+}
