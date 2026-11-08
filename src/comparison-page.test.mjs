@@ -143,6 +143,24 @@ test('the page shows the rounded record and keeps the order form', () => {
   }
 });
 
+test('the comparison table does not show a scored-request column', () => {
+  const table = page.slice(page.indexOf('<table class="bench__table">'), page.indexOf('</table>'));
+  const notes = page.slice(page.indexOf('<details class="bench__notes">'));
+  const css = fs.readFileSync(path.join(root, 'web/styles.css'), 'utf8');
+  assert.equal(table.includes('计分请求'), false);
+  assert.equal(table.includes('data-label="计分请求"'), false);
+  assert.equal(page.includes('计分请求一列是 Jev / Luna'), false);
+  for (const ratio of ['20 / 5', '35 / 5', '15 / 5', '5 / 5']) {
+    assert.equal(table.includes(ratio), false, ratio);
+  }
+  assert.equal(css.includes('bench__footnote'), false);
+  assert.equal((table.match(/<th scope="col">/g) || []).length, 4);
+  assert.equal((table.match(/data-label="正确"/g) || []).length, 5);
+  assert.equal(notes.includes('计分请求 Jev 80 次、Luna 25 次'), true);
+  assert.equal(notes.includes('一单多次请求'), true);
+  assert.equal(notes.includes('一次整单'), true);
+});
+
 test('the new record does not carry secrets or another model round', () => {
   const bench = page.slice(page.indexOf('id="bench"'));
   const published = `${JSON.stringify(data)}\n${bench}`;

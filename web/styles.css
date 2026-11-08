@@ -577,7 +577,6 @@ button {
 
 .bench__lead,
 .bench__caveat,
-.bench__footnote,
 .bench__notes-body p {
   margin: 0;
   color: var(--ink);
@@ -734,12 +733,6 @@ button {
 .bench__table td {
   font-size: 0.88rem;
   white-space: nowrap;
-}
-
-.bench__footnote {
-  margin-top: 0.7rem;
-  color: var(--ink-soft);
-  font-size: 0.84rem;
 }
 
 .bench__notes {
